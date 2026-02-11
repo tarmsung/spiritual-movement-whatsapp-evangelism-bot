@@ -12,6 +12,11 @@ export async function handleGroupMessage(sock, msg, messageText) {
     const groupJid = msg.key.remoteJid;
     const senderJid = msg.key.participant || msg.participant;
 
+    // Ignore messages sent by the bot itself
+    if (msg.key.fromMe) {
+        return;
+    }
+
     logger.info(`[GROUP] Message received in group: ${groupJid} from: ${senderJid}`);
 
     // Check if this is an evangelism report
