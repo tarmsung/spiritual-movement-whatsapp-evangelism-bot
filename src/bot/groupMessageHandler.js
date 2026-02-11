@@ -39,12 +39,15 @@ export async function handleGroupMessage(sock, msg, messageText) {
             logger.warn(`[GROUP] Invalid evangelism report from ${senderJid}:`, validation.errors);
 
             // Optionally send error message to group
-            const errorMsg = `❌ *Evangelism Report Error*\n\n` +
+            const errorMsg = `❌ *Evangelism Report Error* @${senderJid.split('@')[0]}\n\n` +
                 `The report could not be saved due to the following issues:\n` +
                 validation.errors.map(err => `• ${err}`).join('\n') +
                 `\n\n_Please check the format and try again._`;
 
-            await sock.sendMessage(groupJid, { text: errorMsg });
+            await sock.sendMessage(groupJid, {
+                text: errorMsg,
+                mentions: [senderJid]
+            });
             return;
         }
 
@@ -74,7 +77,7 @@ export async function handleGroupMessage(sock, msg, messageText) {
         logger.info(`[GROUP] Report saved successfully with ID: ${result.lastInsertRowid}`);
 
         // Send confirmation message
-        const confirmMsg = `✅ *Evangelism Report Saved!*\n\n` +
+        const confirmMsg = `✅ *Evangelism Report Saved!* @${senderPhone}\n\n` +
             `📋 Report #${result.lastInsertRowid}\n` +
             `📅 Date: ${parsedReport.activity_date}\n` +
             `📍 Location: ${parsedReport.location}\n` +
@@ -82,7 +85,10 @@ export async function handleGroupMessage(sock, msg, messageText) {
             `🏛️ Assembly: ${assembly.name}\n\n` +
             `Thank you for your faithfulness! 🙏`;
 
-        await sock.sendMessage(groupJid, { text: confirmMsg });
+        await sock.sendMessage(groupJid, {
+            text: confirmMsg,
+            mentions: [senderJid]
+        });
 
     } catch (error) {
         logger.error('[GROUP] Error processing group report:', error);
