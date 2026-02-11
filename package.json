@@ -1,0 +1,35 @@
+{
+  "name": "whatsapp-evangelism-bot",
+  "version": "1.0.0",
+  "description": "WhatsApp chatbot for church evangelism report collection, storage, and AI-powered monthly reporting",
+  "main": "src/index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node src/index.js",
+    "setup": "node src/config/setup.js",
+    "dev": "node --watch src/index.js",
+    "test": "node --test"
+  },
+  "keywords": [
+    "whatsapp",
+    "bot",
+    "evangelism",
+    "church",
+    "reporting"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@supabase/supabase-js": "^2.95.3",
+    "@whiskeysockets/baileys": "^6.7.0",
+    "dotenv": "^16.4.5",
+    "node-cron": "^3.0.3",
+    "openai": "^4.0.0",
+    "pdfkit": "^0.15.0",
+    "pino": "^9.0.0",
+    "qrcode-terminal": "^0.12.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

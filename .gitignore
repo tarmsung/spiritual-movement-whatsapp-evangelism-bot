@@ -1,0 +1,39 @@
+# Ignore node modules
+node_modules/
+
+# Ignore environment variables
+.env
+
+# Ignore authentication session
+auth_info_baileys/
+
+# Ignore database
+data/*.db
+data/*.db-shm
+data/*.db-wal
+
+# Ignore logs
+logs/
+*.log
+
+# Ignore PM2 files
+.pm2/
+
+# Ignore generated reports
+reports/
+
+# Ignore OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Ignore IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Ignore temporary files
+tmp/
+temp/
+*.tmp
