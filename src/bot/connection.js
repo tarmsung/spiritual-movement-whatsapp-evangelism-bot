@@ -77,7 +77,10 @@ export async function startWhatsAppConnection(messageHandler) {
         for (const msg of messages) {
             try {
                 // Ignore messages from self
-                if (msg.key.fromMe) continue;
+                if (msg.key.fromMe) {
+                    logger.debug(`[CONNECTION] Ignoring message from self (fromMe=true)`);
+                    continue;
+                }
 
                 const remoteJid = msg.key.remoteJid;
                 const isGroup = remoteJid?.endsWith('@g.us');
