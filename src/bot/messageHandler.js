@@ -22,7 +22,7 @@ export async function handleMessage(sock, msg, messageText) {
     logger.info(`Message from ${userJid}: ${messageText}`);
 
     // Check if user has an active form
-    if (hasActiveForm(userJid)) {
+    if (await hasActiveForm(userJid)) {
         await processFormResponse(sock, userJid, messageText);
         return;
     }
