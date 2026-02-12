@@ -30,7 +30,7 @@ const ASSEMBLIES = [
 ];
 
 async function seedAssemblies() {
-    console.log('🌱 Seeding assemblies...');
+    console.log('🌱 Seeding clusters...');
 
     for (const assembly of ASSEMBLIES) {
         // Check if exists
@@ -41,7 +41,7 @@ async function seedAssemblies() {
             .single();
 
         if (existing) {
-            console.log(`⚠️  Assembly "${assembly.name}" already exists. Skipping.`);
+            console.log(`⚠️  Cluster "${assembly.name}" already exists. Skipping.`);
             continue;
         }
 
@@ -55,9 +55,9 @@ async function seedAssemblies() {
             ]);
 
         if (error) {
-            console.error(`❌ Failed to insert "${assembly.name}":`, error.message);
+            console.error(`❌ Failed to insert cluster "${assembly.name}":`, error.message);
         } else {
-            console.log(`✅ Added assembly: ${assembly.name}`);
+            console.log(`✅ Added cluster: ${assembly.name}`);
         }
     }
 

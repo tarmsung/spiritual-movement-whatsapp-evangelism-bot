@@ -114,8 +114,8 @@ async function viewDatabase() {
     });
   }
 
-  // Show assemblies
-  console.log('\n\n🏛️  CONFIGURED ASSEMBLIES:');
+  // Show clusters
+  console.log('\n\n🏛️  CONFIGURED CLUSTERS:');
   console.log('='.repeat(80));
 
   const { data: assemblies, error: assembliesError } = await supabase
@@ -123,9 +123,9 @@ async function viewDatabase() {
     .select('*');
 
   if (assembliesError) {
-    console.error('Error fetching assemblies:', assembliesError);
+    console.error('Error fetching clusters:', assembliesError);
   } else if (assemblies.length === 0) {
-    console.log('   No assemblies configured.');
+    console.log('   No clusters configured.');
   } else {
     assemblies.forEach(assembly => {
       console.log(`   ${assembly.id}. ${assembly.name}`);

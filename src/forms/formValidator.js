@@ -1,7 +1,7 @@
 // Form validation functions
 
 /**
- * Validate assembly selection
+ * Validate cluster selection
  * @param {string} input
  * @param {number} maxOptions
  * @returns {{valid: boolean, value?: number, error?: string}}

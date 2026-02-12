@@ -23,7 +23,7 @@ async function setAssemblyGroupId() {
     const args = process.argv.slice(2);
 
     if (args.length < 2) {
-        console.log('Usage: node src/utils/setGroupId.js <Assembly Name> <Group ID>');
+        console.log('Usage: node src/utils/setGroupId.js <Cluster Name> <Group ID>');
         console.log('Example: node src/utils/setGroupId.js "Harare" "120363024508779999@g.us"');
         process.exit(1);
     }
@@ -31,7 +31,7 @@ async function setAssemblyGroupId() {
     const name = args[0];
     const groupId = args[1];
 
-    console.log(`🔍 Updating "${name}" with Group ID: ${groupId}...`);
+    console.log(`🔍 Updating cluster "${name}" with Group ID: ${groupId}...`);
 
     const { data: assembly, error: fetchError } = await supabase
         .from('assemblies')
@@ -40,7 +40,7 @@ async function setAssemblyGroupId() {
         .single();
 
     if (fetchError || !assembly) {
-        console.error(`❌ Assembly "${name}" not found.`);
+        console.error(`❌ Cluster "${name}" not found.`);
         process.exit(1);
     }
 

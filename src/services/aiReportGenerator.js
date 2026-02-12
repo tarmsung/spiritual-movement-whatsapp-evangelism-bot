@@ -114,7 +114,7 @@ function buildAnalysisPrompt(reportData) {
     prompt += `- Conversions: ${formatNumber(reportData.overall.totalConversions)}\n`;
     prompt += `- Conversion Rate: ${reportData.overall.conversionRate}\n\n`;
 
-    prompt += `ASSEMBLY PERFORMANCE:\n`;
+    prompt += `CLUSTER PERFORMANCE:\n`;
     reportData.assemblies.forEach(a => {
         prompt += `- ${a.name}: ${a.reports} reports, ${formatNumber(a.reached)} reached, ${formatNumber(a.conversions)} conversions (${a.conversionRate})\n`;
     });
@@ -146,7 +146,7 @@ function generateBasicSummary(reportData) {
 
     summary += `KEY HIGHLIGHTS\n\n`;
 
-    // Top performing assembly
+    // Top performing cluster
     if (reportData.assemblies.length > 0) {
         const topAssembly = reportData.assemblies.reduce((max, a) =>
             a.conversions > max.conversions ? a : max

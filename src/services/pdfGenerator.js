@@ -116,10 +116,10 @@ function buildPDFContent(doc, reportData) {
 
     doc.moveDown(2);
 
-    // Assembly Performance Section
+    // Cluster Performance Section
     doc.fontSize(18)
         .fillColor('#1a1a1a')
-        .text('🏛️ Assembly Performance', { underline: true });
+        .text('🏛️ Cluster Performance', { underline: true });
 
     doc.moveDown(1);
 
@@ -140,7 +140,7 @@ function buildPDFContent(doc, reportData) {
     } else {
         doc.fontSize(11)
             .fillColor('#999')
-            .text('No assembly data available');
+            .text('No cluster data available');
     }
 
     doc.moveDown(2);

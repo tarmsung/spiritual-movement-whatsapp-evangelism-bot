@@ -143,7 +143,7 @@ async function sendAssemblyPrompt(sock, userJid) {
     }
 
     let message = '📋 *EVANGELISM REPORT FORM*\n\n';
-    message += '🏛️ *Select your assembly:*\n\n';
+    message += 'TM *Select your cluster:*\n\n';
 
     assemblies.forEach((assembly, index) => {
         message += `▪️ ${index + 1}. ${assembly.name}\n`;
@@ -179,7 +179,7 @@ async function processAssemblyStep(sock, userJid, message, formData) {
     // Move to next step
     await saveUserFormState(userJid, STEPS.DATE, formData);
 
-    let response = `✅ Assembly: *${selectedAssembly.name}*\n\n`;
+    let response = `✅ Cluster: *${selectedAssembly.name}*\n\n`;
     response += '📅 *When did this evangelism activity take place?*\n';
     response += '(Enter date as DD/MM/YYYY, or type "today" or "yesterday")';
 
@@ -442,7 +442,7 @@ async function processReporterNameStep(sock, userJid, message, formData) {
     // Send summary for confirmation
     let summary = '📖 REPORT SUMMARY 📖\n';
     summary += '━━━━━━━━━━━━━━━━━━━━\n';
-    summary += `🏛️ Assembly: ${formData.assembly_name}\n`;
+    summary += `TM Cluster: ${formData.assembly_name}\n`;
     summary += `📅 Date: ${formatDate(formData.activity_date)}\n`;
     summary += `📍 Location: ${formData.location}\n`;
     summary += `📋 Activity Type: ${formData.activity_type}\n`;

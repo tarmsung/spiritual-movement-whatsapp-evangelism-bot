@@ -49,7 +49,7 @@ async function runSetup() {
         await setupEnvironment(envPath);
     }
 
-    // Setup assemblies
+    // Setup clusters
     await setupAssemblies();
 
     console.log('\n╔═══════════════════════════════════════════╗');
@@ -118,8 +118,8 @@ LOG_LEVEL=info
  * Setup assemblies
  */
 async function setupAssemblies() {
-    console.log('\n--- Assembly Configuration ---\n');
-    console.log('You need to configure at least one assembly (church branch/group).\n');
+    console.log('\n--- Cluster Configuration ---\n');
+    console.log('You need to configure at least one cluster (church branch/group).\n');
     console.log('To get the WhatsApp Group ID:');
     console.log('1. Start the bot and scan QR code');
     console.log('2. Add the bot to your WhatsApp group');
@@ -134,20 +134,20 @@ async function setupAssemblies() {
     // Check for existing assemblies
     const existingAssemblies = await getAllAssemblies();
     if (existingAssemblies.length > 0) {
-        console.log('Existing assemblies:');
+        console.log('Existing clusters:');
         existingAssemblies.forEach(a => {
             console.log(`  - ${a.name} (${a.whatsapp_group_id})`);
         });
         console.log();
     }
 
-    const addAssemblies = await question('Add assemblies now? (yes/no): ');
+    const addAssemblies = await question('Add clusters now? (yes/no): ');
 
     if (addAssemblies.toLowerCase() === 'yes' || addAssemblies.toLowerCase() === 'y') {
         let continueAdding = true;
 
         while (continueAdding) {
-            const name = await question('Assembly Name: ');
+            const name = await question('Cluster Name: ');
             const groupId = await question('WhatsApp Group ID (or placeholder): ');
 
             try {
@@ -157,11 +157,11 @@ async function setupAssemblies() {
                 console.log(`✗ Error: ${error.message}\n`);
             }
 
-            const addMore = await question('Add another assembly? (yes/no): ');
+            const addMore = await question('Add another cluster? (yes/no): ');
             continueAdding = addMore.toLowerCase() === 'yes' || addMore.toLowerCase() === 'y';
         }
     } else {
-        console.log('\n⚠ You can add assemblies later by running this setup again');
+        console.log('\n You can add clusters later by running this setup again');
         console.log('or by directly inserting into the database.\n');
     }
 }

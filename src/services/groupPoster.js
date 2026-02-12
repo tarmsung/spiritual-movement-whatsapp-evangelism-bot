@@ -22,7 +22,7 @@ export async function postReportToGroup(sock, reportId) {
         }
 
         if (!report.whatsapp_group_id) {
-            logger.warn(`No WhatsApp group ID for assembly: ${report.assembly_name}`);
+            logger.warn(`No WhatsApp group ID for cluster: ${report.assembly_name}`);
             return;
         }
 
@@ -83,7 +83,7 @@ function formatReportMessage(report) {
 
     message += `📝 Reporter: ${report.reporter_name}\n`;
     message += '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n';
-    message += `🏛️ ${report.assembly_name}`;
+    message += `🏛️ Cluster: ${report.assembly_name}`;
 
     return message;
 }
