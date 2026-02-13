@@ -2,6 +2,7 @@ import config from '../config/config.js';
 import logger from '../utils/logger.js';
 import { startReportForm, processFormResponse, hasActiveForm } from '../forms/reportForm.js';
 import { handleGroupMessage } from './groupMessageHandler.js';
+import { generateTestReport } from '../services/scheduler.js';
 
 /**
  * Main message handler
@@ -38,6 +39,12 @@ export async function handleMessage(sock, msg, messageText) {
     // Help command
     if (normalizedMessage === '!help' || normalizedMessage === 'help') {
         await sendHelpMessage(sock, userJid);
+        return;
+    }
+
+    // Test report command
+    if (normalizedMessage === '!testreport') {
+        await generateTestReport(sock, userJid);
         return;
     }
 

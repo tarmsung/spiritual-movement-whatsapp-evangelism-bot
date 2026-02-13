@@ -71,7 +71,7 @@ function buildPDFContent(doc, reportData) {
 
     doc.fontSize(16)
         .fillColor('#666')
-        .text('Monthly Evangelism Report', { align: 'center' });
+        .text(reportData.title || 'Monthly Evangelism Report', { align: 'center' });
 
     doc.moveDown(0.5);
     doc.fontSize(12)

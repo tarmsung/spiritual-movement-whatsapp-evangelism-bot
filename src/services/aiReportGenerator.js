@@ -9,12 +9,13 @@ import {
 import { formatNumber, calculateConversionRate, getMonthName } from '../utils/helpers.js';
 
 /**
- * Generate AI-powered monthly evangelism report
+ * Generate AI-powered evangelism report
  * @param {string} startDate - Report start date (YYYY-MM-DD)
  * @param {string} endDate - Report end date (YYYY-MM-DD)
+ * @param {string} [periodTitle] - Optional override for period title
  * @returns {Promise<Object>} Report data with AI analysis
  */
-export async function generateMonthlyReport(startDate, endDate) {
+export async function generateMonthlyReport(startDate, endDate, periodTitle = null) {
     logger.info(`Generating monthly report for ${startDate} to ${endDate}`);
 
     // Gather statistics
@@ -30,7 +31,7 @@ export async function generateMonthlyReport(startDate, endDate) {
 
     // Prepare report data
     const reportData = {
-        period: getMonthName(startDate),
+        period: periodTitle || getMonthName(startDate),
         startDate,
         endDate,
         overall: {

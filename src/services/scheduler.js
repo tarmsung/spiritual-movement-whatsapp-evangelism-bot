@@ -3,7 +3,7 @@ import cron from 'node-cron';
 import logger from '../utils/logger.js';
 import config from '../config/config.js';
 import { getAllAssemblies } from '../database/db.js';
-import { getPreviousMonthRange, formatNumber } from '../utils/helpers.js';
+import { getPreviousMonthRange, getPreviousDayRange, formatNumber } from '../utils/helpers.js';
 import { generateMonthlyReport } from './aiReportGenerator.js';
 import { generatePDFReport } from './pdfGenerator.js';
 import { getSocket } from '../bot/connection.js';
@@ -144,4 +144,52 @@ function formatSummaryMessage(reportData) {
 export async function manuallyTriggerReport() {
     logger.info('Manual report generation triggered');
     await generateAndDistributeMonthlyReport();
+}
+
+/**
+ * Generate test report for a single user
+ * @param {Object} sock - WhatsApp socket
+ * @param {string} recipientJid - Recipient JID
+ */
+export async function generateTestReport(sock, recipientJid) {
+    try {
+        logger.info(`Generating test report for ${recipientJid}...`);
+        await sock.sendMessage(recipientJid, { text: 'Generating test report... Please wait.' });
+
+        // Get previous day date range (yesterday)
+        const { start, end } = getPreviousDayRange();
+        const customTitle = `Daily Test Report (${start})`;
+
+        // Generate report data with custom title
+        const reportData = await generateMonthlyReport(start, end, customTitle);
+        reportData.title = customTitle; // Set title for PDF
+
+        // Generate PDF
+        const pdfPath = await generatePDFReport(reportData);
+
+        // Create summary message
+        const summaryMessage = formatSummaryMessage(reportData);
+
+        // 1. Send text summary
+        await sock.sendMessage(recipientJid, {
+            text: summaryMessage
+        });
+
+        // 2. Send PDF document
+        const fileBuffer = fs.readFileSync(pdfPath);
+        const fileName = `Daily_Report_${start}.pdf`;
+
+        await sock.sendMessage(recipientJid, {
+            document: fileBuffer,
+            mimetype: 'application/pdf',
+            fileName: fileName,
+            caption: `📄 ${customTitle}`
+        });
+
+        logger.info(`Test report sent to ${recipientJid}`);
+
+    } catch (error) {
+        logger.error(`Error generating test report for ${recipientJid}:`, error);
+        await sock.sendMessage(recipientJid, { text: 'Error generating test report. Check logs.' });
+    }
 }

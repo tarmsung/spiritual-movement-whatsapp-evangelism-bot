@@ -124,3 +124,20 @@ export function getPreviousMonthRange() {
         end: end.toISOString().split('T')[0]
     };
 }
+
+/**
+ * Get previous day date range (yesterday)
+ * @returns {{start: string, end: string}}
+ */
+export function getPreviousDayRange() {
+    const today = new Date();
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+
+    const dateStr = yesterday.toISOString().split('T')[0];
+
+    return {
+        start: dateStr,
+        end: dateStr
+    };
+}
