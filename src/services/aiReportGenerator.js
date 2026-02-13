@@ -25,8 +25,8 @@ export async function generateMonthlyReport(startDate, endDate, periodTitle = nu
 
     // Calculate metrics
     const conversionRate = calculateConversionRate(
-        overallStats.total_conversions || 0,
-        overallStats.total_reached || 0
+        overallStats.total_converts || 0,
+        overallStats.total_sick_prayed_for || 0
     );
 
     // Prepare report data
@@ -36,22 +36,22 @@ export async function generateMonthlyReport(startDate, endDate, periodTitle = nu
         endDate,
         overall: {
             totalReports: overallStats.total_reports || 0,
-            totalReached: overallStats.total_reached || 0,
-            totalConversions: overallStats.total_conversions || 0,
+            totalReached: overallStats.total_sick_prayed_for || 0,
+            totalConversions: overallStats.total_converts || 0,
             conversionRate
         },
         assemblies: assemblyStats.map(a => ({
             name: a.assembly_name,
             reports: a.total_reports || 0,
-            reached: a.total_reached || 0,
-            conversions: a.total_conversions || 0,
-            conversionRate: calculateConversionRate(a.total_conversions || 0, a.total_reached || 0)
+            reached: a.total_sick_prayed_for || 0,
+            conversions: a.total_converts || 0,
+            conversionRate: calculateConversionRate(a.total_converts || 0, a.total_sick_prayed_for || 0)
         })),
         activityTypes: activityBreakdown.map(a => ({
             type: a.activity_type,
             count: a.count,
-            reached: a.total_reached,
-            conversions: a.total_conversions
+            reached: a.total_sick_prayed_for || 0,
+            conversions: a.total_converts || 0
         }))
     };
 
