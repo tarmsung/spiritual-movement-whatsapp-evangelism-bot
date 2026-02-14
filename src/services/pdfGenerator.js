@@ -17,15 +17,15 @@ if (!existsSync(REPORTS_DIR)) {
 }
 
 /**
- * Generate PDF report from monthly data
- * @param {Object} reportData - Monthly report data
+ * Generate publication-quality PDF report from monthly data (SMC format)
+ * @param {Object} reportData - Monthly report data with SMC structure
  * @returns {Promise<string>} Path to generated PDF
  */
 export async function generatePDFReport(reportData) {
     const filename = `evangelism_report_${reportData.startDate}_to_${reportData.endDate}.pdf`;
     const filepath = join(REPORTS_DIR, filename);
 
-    logger.info(`Generating PDF report: ${filename}`);
+    logger.info(`Generating SMC PDF report: ${filename}`);
 
     return new Promise((resolve, reject) => {
         try {
@@ -39,14 +39,14 @@ export async function generatePDFReport(reportData) {
             const stream = createWriteStream(filepath);
             doc.pipe(stream);
 
-            // Build PDF content
-            buildPDFContent(doc, reportData);
+            // Build PDF content with SMC structure
+            buildSMCPDFContent(doc, reportData);
 
             // Finalize PDF
             doc.end();
 
             stream.on('finish', () => {
-                logger.info(`PDF report generated: ${filepath}`);
+                logger.info(`SMC PDF report generated: ${filepath}`);
                 resolve(filepath);
             });
 
@@ -59,24 +59,30 @@ export async function generatePDFReport(reportData) {
 }
 
 /**
- * Build PDF content
+ * Build SMC-formatted PDF content
  */
-function buildPDFContent(doc, reportData) {
+function buildSMCPDFContent(doc, reportData) {
     const pageWidth = doc.page.width - 100; // Account for margins
 
-    // Header
+    // ===== HEADER =====
     doc.fontSize(24)
         .fillColor('#1a1a1a')
-        .text(config.churchName, { align: 'center' });
-
-    doc.fontSize(16)
-        .fillColor('#666')
-        .text(reportData.title || 'Monthly Evangelism Report', { align: 'center' });
+        .font('Helvetica-Bold')
+        .text('MONTHLY MINISTRY REPORT', { align: 'center' });
 
     doc.moveDown(0.5);
-    doc.fontSize(12)
-        .fillColor('#999')
+
+    doc.fontSize(18)
+        .fillColor('#333')
+        .font('Helvetica')
         .text(reportData.period, { align: 'center' });
+
+    if (reportData.clusterName) {
+        doc.moveDown(0.3);
+        doc.fontSize(14)
+            .fillColor('#666')
+            .text(reportData.clusterName, { align: 'center' });
+    }
 
     doc.moveDown(2);
 
@@ -89,106 +95,224 @@ function buildPDFContent(doc, reportData) {
 
     doc.moveDown(2);
 
-    // Overall Statistics Section
+    // ===== NARRATIVE REPORT SECTION =====
     doc.fontSize(18)
         .fillColor('#1a1a1a')
-        .text('📊 Overall Statistics', { underline: true });
+        .font('Helvetica-Bold')
+        .text('NARRATIVE REPORT', { underline: true });
 
     doc.moveDown(1);
 
-    const statsData = [
-        ['Total Reports:', reportData.overall.totalReports.toString()],
-        ['People Reached:', formatNumber(reportData.overall.totalReached)],
-        ['Conversions:', formatNumber(reportData.overall.totalConversions)],
-        ['Conversion Rate:', reportData.overall.conversionRate]
-    ];
-
-    statsData.forEach(([label, value]) => {
-        doc.fontSize(12)
+    if (reportData.narrative) {
+        doc.fontSize(11)
             .fillColor('#333')
-            .text(label, 70, doc.y, { continued: true, width: 200 })
-            .fillColor('#000')
-            .font('Helvetica-Bold')
-            .text(value, { align: 'right' })
-            .font('Helvetica');
-        doc.moveDown(0.8);
-    });
+            .font('Helvetica')
+            .text(reportData.narrative, {
+                align: 'justify',
+                lineGap: 4
+            });
+    } else {
+        doc.fontSize(11)
+            .fillColor('#999')
+            .text('No narrative available');
+    }
 
     doc.moveDown(2);
 
-    // Cluster Performance Section
+    // Horizontal line
+    doc.strokeColor('#ddd')
+        .lineWidth(1)
+        .moveTo(50, doc.y)
+        .lineTo(doc.page.width - 50, doc.y)
+        .stroke();
+
+    doc.moveDown(2);
+
+    // ===== QUANTIFIED FRUIT SECTION =====
+    const fruitTitle = `${reportData.period.toUpperCase()} FRUIT`;
     doc.fontSize(18)
         .fillColor('#1a1a1a')
-        .text('🏛️ Cluster Performance', { underline: true });
+        .font('Helvetica-Bold')
+        .text(fruitTitle, { underline: true });
 
     doc.moveDown(1);
 
-    if (reportData.assemblies.length > 0) {
-        reportData.assemblies.forEach(assembly => {
-            doc.fontSize(14)
-                .fillColor('#1a73e8')
-                .text(assembly.name);
+    // Souls Added
+    doc.fontSize(14)
+        .fillColor('#333')
+        .font('Helvetica-Bold')
+        .text('Souls Added');
 
-            doc.fontSize(11)
-                .fillColor('#555')
-                .text(`Reports: ${assembly.reports} | Reached: ${formatNumber(assembly.reached)} | Conversions: ${formatNumber(assembly.conversions)} | Rate: ${assembly.conversionRate}`, {
-                    indent: 20
-                });
+    doc.fontSize(12)
+        .fillColor('#000')
+        .font('Helvetica')
+        .text(`${reportData.overall.totalConversions} people gave their lives to Christ.`);
 
-            doc.moveDown(1);
+    doc.moveDown(1);
+
+    // Healing Ministry
+    doc.fontSize(14)
+        .fillColor('#333')
+        .font('Helvetica-Bold')
+        .text('Healing Ministry');
+
+    doc.fontSize(12)
+        .fillColor('#000')
+        .font('Helvetica')
+        .text(`${reportData.overall.totalReached} individuals were prayed for in sickness.`);
+
+    doc.moveDown(2);
+
+    // Horizontal line
+    doc.strokeColor('#ddd')
+        .lineWidth(1)
+        .moveTo(50, doc.y)
+        .lineTo(doc.page.width - 50, doc.y)
+        .stroke();
+
+    doc.moveDown(2);
+
+    // ===== LABOURERS IN THE FIELD SECTION =====
+    // Check if we need a new page
+    if (doc.y > doc.page.height - 250) {
+        doc.addPage();
+    }
+
+    doc.fontSize(18)
+        .fillColor('#1a1a1a')
+        .font('Helvetica-Bold')
+        .text('LABOURERS IN THE FIELD', { underline: true });
+
+    doc.moveDown(1);
+
+    if (reportData.labourers && reportData.labourers.length > 0) {
+        doc.fontSize(11)
+            .fillColor('#333')
+            .font('Helvetica');
+
+        reportData.labourers.forEach(labourer => {
+            doc.text(`• ${labourer}`, { indent: 20 });
+            doc.moveDown(0.5);
         });
     } else {
         doc.fontSize(11)
             .fillColor('#999')
-            .text('No cluster data available');
+            .font('Helvetica')
+            .text('No labourers data available');
     }
 
     doc.moveDown(2);
 
-    // Activity Types Section
+    // ===== FIELDS ENTERED SECTION (New Page) =====
+    doc.addPage();
+
     doc.fontSize(18)
         .fillColor('#1a1a1a')
-        .text('📋 Activity Breakdown', { underline: true });
+        .font('Helvetica-Bold')
+        .text('FIELDS ENTERED', { underline: true });
 
     doc.moveDown(1);
 
-    if (reportData.activityTypes.length > 0) {
-        reportData.activityTypes.forEach(activity => {
-            doc.fontSize(12)
-                .fillColor('#333')
-                .text(`${activity.type}:`, 70, doc.y, { continued: true, width: 200 })
-                .fillColor('#666')
-                .text(`${activity.count} activities, ${formatNumber(activity.conversions)} conversions`, { align: 'right' });
-            doc.moveDown(0.8);
-        });
+    // Embed map if it exists
+    if (reportData.mapImagePath && existsSync(reportData.mapImagePath)) {
+        try {
+            doc.image(reportData.mapImagePath, {
+                fit: [500, 400],
+                align: 'center'
+            });
+            doc.moveDown(1);
+        } catch (error) {
+            logger.error('Error embedding map image:', error);
+        }
     }
 
-    doc.moveDown(2);
-
-    // Add new page for AI analysis if needed
-    if (doc.y > doc.page.height - 200) {
-        doc.addPage();
+    // List locations below map
+    if (reportData.locations && reportData.locations.length > 0) {
+        doc.fontSize(11)
+            .fillColor('#333')
+            .font('Helvetica')
+            .text(reportData.locations.join(', '), {
+                align: 'justify'
+            });
+    } else {
+        doc.fontSize(11)
+            .fillColor('#999')
+            .text('No location data available');
     }
-
-    // AI Analysis Section
-    doc.fontSize(18)
-        .fillColor('#1a1a1a')
-        .text('🤖 Analysis & Insights', { underline: true });
-
-    doc.moveDown(1);
-
-    doc.fontSize(11)
-        .fillColor('#333')
-        .text(reportData.aiAnalysis || 'No analysis available', {
-            align: 'justify',
-            lineGap: 5
-        });
 
     doc.moveDown(3);
 
-    // Footer
+    // Horizontal line
+    doc.strokeColor('#ddd')
+        .lineWidth(1)
+        .moveTo(50, doc.y)
+        .lineTo(doc.page.width - 50, doc.y)
+        .stroke();
+
+    doc.moveDown(2);
+
+    // ===== MESSAGE EMPHASIS SECTION =====
+    doc.fontSize(18)
+        .fillColor('#1a1a1a')
+        .font('Helvetica-Bold')
+        .text('MESSAGE EMPHASIS', { underline: true });
+
+    doc.moveDown(1);
+
+    if (reportData.messageEmphasis && reportData.messageEmphasis.length > 0) {
+        doc.fontSize(11)
+            .fillColor('#333')
+            .font('Helvetica');
+
+        reportData.messageEmphasis.forEach(item => {
+            doc.text(`• ${item}`, { indent: 20 });
+            doc.moveDown(0.5);
+        });
+    } else {
+        doc.fontSize(11)
+            .fillColor('#999')
+            .text('No message emphasis data available');
+    }
+
+    doc.moveDown(2);
+
+    // Horizontal line
+    doc.strokeColor('#ddd')
+        .lineWidth(1)
+        .moveTo(50, doc.y)
+        .lineTo(doc.page.width - 50, doc.y)
+        .stroke();
+
+    doc.moveDown(2);
+
+    // ===== CONCLUSION SECTION =====
+    doc.fontSize(18)
+        .fillColor('#1a1a1a')
+        .font('Helvetica-Bold')
+        .text('CONCLUSION', { underline: true });
+
+    doc.moveDown(1);
+
+    if (reportData.conclusion) {
+        doc.fontSize(11)
+            .fillColor('#333')
+            .font('Helvetica')
+            .text(reportData.conclusion, {
+                align: 'justify',
+                lineGap: 4
+            });
+    } else {
+        doc.fontSize(11)
+            .fillColor('#999')
+            .text('No conclusion available');
+    }
+
+    doc.moveDown(3);
+
+    // ===== FOOTER =====
     doc.fontSize(9)
         .fillColor('#999')
+        .font('Helvetica')
         .text(`Generated on ${new Date().toLocaleDateString()}`, {
             align: 'center'
         });
