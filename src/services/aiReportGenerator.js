@@ -291,7 +291,7 @@ async function generateNarrative(reportData, command) {
             }
         ],
         temperature: 0.7,
-        max_tokens: 2500
+        max_completion_tokens: 2500
     });
 
     const response = completion.choices[0].message.content;
