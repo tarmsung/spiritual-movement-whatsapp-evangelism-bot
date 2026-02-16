@@ -65,14 +65,17 @@ export async function generateAssemblyReport(assembly, startDate, endDate, optio
     const reports = await getReportsForAssembly(assembly.id, startDate, endDate);
 
     // Extract and deduplicate data
-    const uniqueLocations = deduplicateList(
+    const uniqueLocations = deduplicateLocations(
         reports.map(r => r.location).filter(Boolean)
     );
 
-    const uniquePreachers = deduplicateList(
+    const uniquePreachers = deduplicateLabourers(
         reports.flatMap(r => {
             if (!r.preachers_team) return [];
-            return r.preachers_team.split(',').map(n => n.trim());
+            // Split on comma AND 'and' (surrounded by spaces)
+            return r.preachers_team
+                .split(/,|\s+and\s+/i)
+                .map(n => n.trim());
         }).filter(Boolean)
     );
 
@@ -160,6 +163,107 @@ function deduplicateList(items) {
         const key = item.toLowerCase().trim();
         if (!seen.has(key)) {
             seen.set(key, item.trim());
+        }
+    });
+    return Array.from(seen.values()).sort();
+}
+
+/**
+ * Normalize a person's name for deduplication:
+ * - Strip trailing punctuation (periods, commas)
+ * - Normalize titles: Br/Brother → Brother, Sr/Sister → Sister
+ * - Normalize Mrs./Mrs/Mr./Mr
+ * - Collapse whitespace
+ */
+function normalizePersonName(name) {
+    let n = name.trim();
+    // Strip trailing punctuation
+    n = n.replace(/[.,;:!]+$/, '').trim();
+    // Collapse whitespace
+    n = n.replace(/\s+/g, ' ');
+    // Remove leading slash or "and" fragments
+    n = n.replace(/^\/\s*/, '').trim();
+    // Normalize titles to a canonical form for comparison
+    // "Br " → "Brother ", "Sr " → "Sister ", "Mrs." → "Mrs", "Mr." → "Mr"
+    return n;
+}
+
+/**
+ * Create a comparison key for a person's name.
+ * Normalizes prefixes so that "Br Tadiwa" and "Brother Tadiwa" generate the same key.
+ */
+function personKey(name) {
+    let key = name.toLowerCase().trim();
+    // Strip trailing punctuation
+    key = key.replace(/[.,;:!/]+$/, '').trim();
+    // Collapse whitespace
+    key = key.replace(/\s+/g, ' ');
+    // Normalize title prefixes
+    key = key.replace(/^brother\s+/i, 'br ');
+    key = key.replace(/^sister\s+/i, 'sr ');
+    key = key.replace(/^mrs\.?\s+/i, 'mrs ');
+    key = key.replace(/^mr\.?\s+/i, 'mr ');
+    key = key.replace(/^pastor\s+/i, 'pastor ');
+    return key;
+}
+
+/** Entries to filter out entirely */
+const JUNK_NAMES = ['not specified', 'unknown', 'n/a', 'none', '-', ''];
+
+/**
+ * Deduplicate labourers/preachers with smart name normalization
+ * Handles: trailing periods, Br/Brother variants, junk entries
+ */
+function deduplicateLabourers(items) {
+    const seen = new Map();
+    items.forEach(item => {
+        const cleaned = normalizePersonName(item);
+        // Filter junk entries
+        if (JUNK_NAMES.includes(cleaned.toLowerCase())) return;
+        // Filter entries that are too short (e.g., just "and")
+        if (cleaned.length < 3) return;
+
+        const key = personKey(cleaned);
+        if (!seen.has(key)) {
+            seen.set(key, cleaned);
+        }
+    });
+    return Array.from(seen.values()).sort();
+}
+
+/**
+ * Normalize a location string for comparison:
+ * - Strip trailing punctuation
+ * - Collapse whitespace around slashes
+ * - Remove wrapping parentheses
+ * - Collapse multiple spaces
+ */
+function locationKey(loc) {
+    let key = loc.toLowerCase().trim();
+    // Strip trailing punctuation
+    key = key.replace(/[.,;:!]+$/, '').trim();
+    // Remove wrapping parentheses
+    key = key.replace(/^\((.+)\)$/, '$1');
+    // Normalize spaces around slashes
+    key = key.replace(/\s*\/\s*/g, '/');
+    // Collapse whitespace
+    key = key.replace(/\s+/g, ' ');
+    return key;
+}
+
+/**
+ * Deduplicate locations with normalization
+ * Handles: trailing periods, inconsistent spacing, wrapping parens
+ */
+function deduplicateLocations(items) {
+    const seen = new Map();
+    items.forEach(item => {
+        const cleaned = item.trim().replace(/[.,;:!]+$/, '').trim();
+        if (cleaned.length < 2) return;
+
+        const key = locationKey(cleaned);
+        if (!seen.has(key)) {
+            seen.set(key, cleaned);
         }
     });
     return Array.from(seen.values()).sort();
