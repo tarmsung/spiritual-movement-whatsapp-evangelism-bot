@@ -4,7 +4,7 @@ import logger from '../utils/logger.js';
 import config from '../config/config.js';
 import { getAllAssemblies } from '../database/db.js';
 import { getPreviousMonthRange, getPreviousDayRange, formatNumber } from '../utils/helpers.js';
-import { generateMonthlyReport } from './aiReportGenerator.js';
+import { generateAssemblyReports, generateAssemblyReport } from './aiReportGenerator.js';
 import { generatePDFReport } from './pdfGenerator.js';
 import { getSocket } from '../bot/connection.js';
 
@@ -41,7 +41,7 @@ export function stopScheduler() {
 }
 
 /**
- * Generate and distribute monthly report
+ * Generate and distribute monthly reports (one per assembly)
  */
 export async function generateAndDistributeMonthlyReport() {
     try {
@@ -50,49 +50,59 @@ export async function generateAndDistributeMonthlyReport() {
         // Get previous month date range
         const { start, end } = getPreviousMonthRange();
 
-        // Generate report data
-        const reportData = await generateMonthlyReport(start, end);
+        // Generate reports for all assemblies
+        const assemblyReports = await generateAssemblyReports(start, end);
 
-        // Generate PDF
-        const pdfPath = await generatePDFReport(reportData);
+        if (assemblyReports.length === 0) {
+            logger.info('No assembly reports to distribute - no data for this period');
+            return;
+        }
 
         // Get WhatsApp socket
         const sock = getSocket();
         if (!sock) {
-            logger.error('WhatsApp not connected - cannot distribute report');
+            logger.error('WhatsApp not connected - cannot distribute reports');
             return;
         }
 
-        // Create summary message
-        const summaryMessage = formatSummaryMessage(reportData);
-
-        // Get all assemblies
+        // Get all assemblies (for group JIDs)
         const assemblies = await getAllAssemblies();
 
-        // Send summary and PDF to all assembly groups
-        for (const assembly of assemblies) {
-            if (assembly.whatsapp_group_id) {
-                try {
-                    // 1. Send text summary
-                    await sock.sendMessage(assembly.whatsapp_group_id, {
-                        text: summaryMessage
-                    });
+        // Send each assembly's report to its own group
+        for (const report of assemblyReports) {
+            // Find this assembly's group JID
+            const assembly = assemblies.find(a => a.name === report.assemblyName);
+            if (!assembly || !assembly.whatsapp_group_id) {
+                logger.warn(`No WhatsApp group configured for ${report.assemblyName} - skipping distribution`);
+                continue;
+            }
 
-                    // 2. Send PDF document
-                    const fileBuffer = fs.readFileSync(pdfPath);
-                    const fileName = `Evangelism_Report_${reportData.period.replace(/ /g, '_')}.pdf`;
+            try {
+                // Generate PDF for this assembly
+                const pdfPath = await generatePDFReport(report);
 
-                    await sock.sendMessage(assembly.whatsapp_group_id, {
-                        document: fileBuffer,
-                        mimetype: 'application/pdf',
-                        fileName: fileName,
-                        caption: `📄 ${reportData.period} Full Report`
-                    });
+                // Create summary message for this assembly
+                const summaryMessage = formatAssemblySummaryMessage(report);
 
-                    logger.info(`Report summary and PDF sent to ${assembly.name}`);
-                } catch (error) {
-                    logger.error(`Failed to send report to ${assembly.name}:`, error);
-                }
+                // 1. Send text summary
+                await sock.sendMessage(assembly.whatsapp_group_id, {
+                    text: summaryMessage
+                });
+
+                // 2. Send PDF document
+                const fileBuffer = fs.readFileSync(pdfPath);
+                const fileName = `Evangelism_Report_${report.assemblyName.replace(/\s+/g, '_')}_${report.period.replace(/ /g, '_')}.pdf`;
+
+                await sock.sendMessage(assembly.whatsapp_group_id, {
+                    document: fileBuffer,
+                    mimetype: 'application/pdf',
+                    fileName: fileName,
+                    caption: `📄 ${report.assemblyName} - ${report.period} Full Report`
+                });
+
+                logger.info(`Report sent to ${report.assemblyName} group`);
+            } catch (error) {
+                logger.error(`Failed to send report to ${report.assemblyName}:`, error);
             }
         }
 
@@ -104,34 +114,36 @@ export async function generateAndDistributeMonthlyReport() {
 }
 
 /**
- * Format summary message for groups
+ * Format summary message for an assembly's group
  */
-function formatSummaryMessage(reportData) {
+function formatAssemblySummaryMessage(report) {
     let message = '📊 MONTHLY EVANGELISM REPORT 📊\n';
     message += '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n';
-    message += `📅 Period: ${reportData.period}\n\n`;
+    message += `🏛️ ${report.assemblyName}\n`;
+    message += `📅 Period: ${report.period}\n\n`;
 
     message += 'KEY STATISTICS\n';
     message += '━━━━━━━━━━━━━━━━\n';
-    message += `📝 Total Reports: ${reportData.overall.totalReports}\n`;
-    message += `👥 People Reached: ${formatNumber(reportData.overall.totalReached)}\n`;
-    message += `✝️ Conversions: ${formatNumber(reportData.overall.totalConversions)}\n`;
-    message += `📈 Conversion Rate: ${reportData.overall.conversionRate}\n\n`;
+    message += `📝 Total Outreaches: ${report.totalOutreaches}\n`;
+    message += `✝️ Converts: ${formatNumber(report.totalConverts)}\n`;
+    message += `🙏 Sick Prayed For: ${formatNumber(report.totalSickPrayedFor)}\n\n`;
 
-    if (reportData.assemblies.length > 0) {
-        message += 'ASSEMBLY PERFORMANCE\n';
+    if (report.locations.length > 0) {
+        message += 'LOCATIONS PREACHED AT\n';
         message += '━━━━━━━━━━━━━━━━━━━━\n';
+        message += report.locations.map(l => `📍 ${l}`).join('\n');
+        message += '\n\n';
+    }
 
-        reportData.assemblies.forEach(assembly => {
-            message += `🏛️ ${assembly.name}\n`;
-            message += `   Reports: ${assembly.reports} | `;
-            message += `Reached: ${formatNumber(assembly.reached)} | `;
-            message += `Conversions: ${formatNumber(assembly.conversions)}\n\n`;
-        });
+    if (report.labourers.length > 0) {
+        message += 'LABOURERS IN THE FIELD\n';
+        message += '━━━━━━━━━━━━━━━━━━━━━━\n';
+        message += report.labourers.map(l => `👤 ${l}`).join('\n');
+        message += '\n\n';
     }
 
     message += '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n';
-    message += '📄 Full report with detailed analysis has been generated.\n';
+    message += '📄 Full report with detailed analysis attached.\n';
     message += 'Praise God for His faithfulness! 🙏\n';
     message += '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━';
 
@@ -147,46 +159,49 @@ export async function manuallyTriggerReport() {
 }
 
 /**
- * Generate test report for a single user
+ * Generate test report for a single user (sends reports for all assemblies)
  * @param {Object} sock - WhatsApp socket
  * @param {string} recipientJid - Recipient JID
  */
 export async function generateTestReport(sock, recipientJid) {
     try {
         logger.info(`Generating test report for ${recipientJid}...`);
-        await sock.sendMessage(recipientJid, { text: 'Generating test report... Please wait.' });
+        await sock.sendMessage(recipientJid, { text: 'Generating assembly reports... Please wait.' });
 
         // Get previous day date range (yesterday)
         const { start, end } = getPreviousDayRange();
-        const customTitle = `Daily Test Report (${start})`;
 
-        // Generate report data with custom title
-        const reportData = await generateMonthlyReport(start, end, customTitle);
-        reportData.title = customTitle; // Set title for PDF
+        // Generate reports for all assemblies
+        const assemblyReports = await generateAssemblyReports(start, end);
 
-        // Generate PDF
-        const pdfPath = await generatePDFReport(reportData);
+        if (assemblyReports.length === 0) {
+            await sock.sendMessage(recipientJid, { text: 'No evangelism reports found for the period.' });
+            return;
+        }
 
-        // Create summary message
-        const summaryMessage = formatSummaryMessage(reportData);
+        // Send summary and PDFs for each assembly
+        for (const report of assemblyReports) {
+            const summaryMessage = formatAssemblySummaryMessage(report);
+            await sock.sendMessage(recipientJid, { text: summaryMessage });
 
-        // 1. Send text summary
+            // Generate and send PDF
+            const pdfPath = await generatePDFReport(report);
+            const fileBuffer = fs.readFileSync(pdfPath);
+            const fileName = `Report_${report.assemblyName.replace(/\s+/g, '_')}_${start}.pdf`;
+
+            await sock.sendMessage(recipientJid, {
+                document: fileBuffer,
+                mimetype: 'application/pdf',
+                fileName: fileName,
+                caption: `📄 ${report.assemblyName} - Daily Report (${start})`
+            });
+        }
+
         await sock.sendMessage(recipientJid, {
-            text: summaryMessage
+            text: `✅ Generated ${assemblyReports.length} assembly report(s).`
         });
 
-        // 2. Send PDF document
-        const fileBuffer = fs.readFileSync(pdfPath);
-        const fileName = `Daily_Report_${start}.pdf`;
-
-        await sock.sendMessage(recipientJid, {
-            document: fileBuffer,
-            mimetype: 'application/pdf',
-            fileName: fileName,
-            caption: `📄 ${customTitle}`
-        });
-
-        logger.info(`Test report sent to ${recipientJid}`);
+        logger.info(`Test reports sent to ${recipientJid}`);
 
     } catch (error) {
         logger.error(`Error generating test report for ${recipientJid}:`, error);

@@ -2,12 +2,10 @@ import OpenAI from 'openai';
 import config from '../config/config.js';
 import logger from '../utils/logger.js';
 import {
-    getMonthlyStats,
-    getMonthlyStatsByAssembly,
-    getActivityTypeBreakdown,
-    getReportsByDateRange
+    getAllAssemblies,
+    getReportsForAssembly
 } from '../database/db.js';
-import { formatNumber, calculateConversionRate, getMonthName } from '../utils/helpers.js';
+import { getMonthName } from '../utils/helpers.js';
 import { detectCommand, DEFAULT_COMMAND } from '../config/smc_reporting_commands.js';
 import { generateLocationPlot } from './coordinateMapGenerator.js';
 import { join } from 'path';
@@ -19,62 +17,100 @@ const __dirname = dirname(__filename);
 const REPORTS_DIR = join(__dirname, '../../reports');
 
 /**
- * Generate AI-powered evangelism report with SMC framework
+ * Generate AI-powered evangelism reports for ALL assemblies
+ * Each assembly gets its own separate report
  * @param {string} startDate - Report start date (YYYY-MM-DD)
  * @param {string} endDate - Report end date (YYYY-MM-DD)
  * @param {Object} options - Report options
- * @param {string} [options.periodTitle] - Optional override for period title
- * @param {string} [options.clusterName] - Optional cluster/region name
- * @param {string} [options.command] - SMC command to use (defaults to [Executor Report])
- * @returns {Promise<Object>} Report data with SMC-formatted content
+ * @returns {Promise<Array>} Array of report data objects (one per assembly)
  */
-export async function generateMonthlyReport(startDate, endDate, options = {}) {
-    logger.info(`Generating SMC report for ${startDate} to ${endDate}`);
+export async function generateAssemblyReports(startDate, endDate, options = {}) {
+    logger.info(`Generating assembly-based reports for ${startDate} to ${endDate}`);
 
-    // Detect SMC command
+    const assemblies = await getAllAssemblies();
+    const reports = [];
+
+    for (const assembly of assemblies) {
+        try {
+            const report = await generateAssemblyReport(assembly, startDate, endDate, options);
+
+            // Only include assemblies that have data for this period
+            if (report.totalOutreaches > 0) {
+                reports.push(report);
+                logger.info(`Report generated for ${assembly.name}: ${report.totalOutreaches} outreaches`);
+            } else {
+                logger.info(`Skipping ${assembly.name} - no reports in this period`);
+            }
+        } catch (error) {
+            logger.error(`Error generating report for ${assembly.name}:`, error);
+        }
+    }
+
+    logger.info(`Generated ${reports.length} assembly reports`);
+    return reports;
+}
+
+/**
+ * Generate a report for a single assembly
+ * @param {Object} assembly - Assembly object { id, name }
+ * @param {string} startDate - Report start date (YYYY-MM-DD)
+ * @param {string} endDate - Report end date (YYYY-MM-DD)
+ * @param {Object} options - Report options
+ * @returns {Promise<Object>} Report data for this assembly
+ */
+export async function generateAssemblyReport(assembly, startDate, endDate, options = {}) {
     const command = detectCommand(options.command || DEFAULT_COMMAND.name);
-    logger.info(`Using SMC command: ${command.name}`);
 
-    // Gather statistics
-    const overallStats = await getMonthlyStats(startDate, endDate);
-    const assemblyStats = await getMonthlyStatsByAssembly(startDate, endDate);
-    const activityBreakdown = await getActivityTypeBreakdown(startDate, endDate);
+    // Fetch only the needed fields for this assembly
+    const reports = await getReportsForAssembly(assembly.id, startDate, endDate);
 
-    // Extract locations and labourers
-    const locations = await extractLocationsFromReports(startDate, endDate);
-    const labourers = await extractLabourersFromReports(startDate, endDate);
+    // Extract and deduplicate data
+    const uniqueLocations = deduplicateList(
+        reports.map(r => r.location).filter(Boolean)
+    );
 
-    logger.info(`Found ${locations.length} unique locations and ${labourers.length} labourers`);
+    const uniquePreachers = deduplicateList(
+        reports.flatMap(r => {
+            if (!r.preachers_team) return [];
+            return r.preachers_team.split(',').map(n => n.trim());
+        }).filter(Boolean)
+    );
 
-    // Prepare base report data
+    const uniqueActivityTypes = deduplicateList(
+        reports.map(r => r.activity_type).filter(Boolean)
+    );
+
+    const messageSummaries = reports
+        .map(r => r.message_summary)
+        .filter(Boolean);
+
+    // Aggregate stats
+    const totalConverts = reports.reduce((sum, r) => sum + (r.converts || 0), 0);
+    const totalSickPrayedFor = reports.reduce((sum, r) => sum + (r.sick_prayed_for || 0), 0);
+
+    // Build report data
     const reportData = {
+        assemblyName: assembly.name,
         period: options.periodTitle || getMonthName(startDate),
-        clusterName: options.clusterName || null,
         startDate,
         endDate,
         command: command.name,
+        totalOutreaches: reports.length,
+        totalConverts,
+        totalSickPrayedFor,
+        locations: uniqueLocations,
+        labourers: uniquePreachers,
+        activityTypes: uniqueActivityTypes,
+        messageSummaries,
+        // Keep overall for backward compatibility with PDF generator
         overall: {
-            totalReports: overallStats.total_reports || 0,
-            totalReached: overallStats.total_sick_prayed_for || 0,
-            totalConversions: overallStats.total_converts || 0
-        },
-        assemblies: assemblyStats.map(a => ({
-            name: a.assembly_name,
-            reports: a.total_reports || 0,
-            reached: a.total_sick_prayed_for || 0,
-            conversions: a.total_converts || 0
-        })),
-        activityTypes: activityBreakdown.map(a => ({
-            type: a.activity_type,
-            count: a.count,
-            reached: a.total_sick_prayed_for || 0,
-            conversions: a.total_converts || 0
-        })),
-        locations,
-        labourers
+            totalReports: reports.length,
+            totalConversions: totalConverts,
+            totalReached: totalSickPrayedFor
+        }
     };
 
-    // Generate narrative using AI (executor voice)
+    // Generate AI narrative
     if (config.openaiApiKey) {
         try {
             const narrative = await generateNarrative(reportData, command);
@@ -82,7 +118,7 @@ export async function generateMonthlyReport(startDate, endDate, options = {}) {
             reportData.messageEmphasis = narrative.messageEmphasis;
             reportData.conclusion = narrative.conclusion;
         } catch (error) {
-            logger.error('Error generating AI narrative:', error);
+            logger.error(`Error generating AI narrative for ${assembly.name}:`, error);
             reportData.narrative = generateFallbackNarrative(reportData);
             reportData.messageEmphasis = generateFallbackMessageEmphasis();
             reportData.conclusion = generateFallbackConclusion(reportData);
@@ -94,14 +130,13 @@ export async function generateMonthlyReport(startDate, endDate, options = {}) {
         reportData.conclusion = generateFallbackConclusion(reportData);
     }
 
-    // Generate map if multiple locations (for PDF embedding)
-    if (locations.length > 1) {
+    // Generate location map if multiple locations
+    if (uniqueLocations.length > 1) {
         try {
-            const mapPath = join(REPORTS_DIR, `map_${startDate}.png`);
-            const title = `${reportData.clusterName || config.churchName} - ${reportData.period} Evangelism Locations`;
-            await generateLocationPlot(locations, title, mapPath);
+            const mapPath = join(REPORTS_DIR, `map_${assembly.name.replace(/\s+/g, '_')}_${startDate}.png`);
+            const title = `${assembly.name} - ${reportData.period} Evangelism Locations`;
+            await generateLocationPlot(uniqueLocations, title, mapPath);
             reportData.mapImagePath = mapPath;
-            logger.info(`Location map generated: ${mapPath}`);
         } catch (error) {
             logger.error('Error generating location map:', error);
             reportData.mapImagePath = null;
@@ -114,35 +149,20 @@ export async function generateMonthlyReport(startDate, endDate, options = {}) {
 }
 
 /**
- * Extract unique locations from reports
+ * Deduplicate a list of strings (case-insensitive)
+ * Keeps the first occurrence's casing
+ * @param {string[]} items - Array of strings to deduplicate
+ * @returns {string[]} Deduplicated sorted array
  */
-async function extractLocationsFromReports(startDate, endDate) {
-    const reports = await getReportsByDateRange(startDate, endDate);
-    const uniqueLocations = [...new Set(reports.map(r => r.location).filter(Boolean))];
-    return uniqueLocations.sort();
-}
-
-/**
- * Extract unique labourers from reports
- */
-async function extractLabourersFromReports(startDate, endDate) {
-    const reports = await getReportsByDateRange(startDate, endDate);
-    const labourers = new Set();
-
-    reports.forEach(r => {
-        // Extract names from preachers_team (may be comma-separated)
-        if (r.preachers_team) {
-            const names = r.preachers_team.split(',').map(n => n.trim());
-            names.forEach(name => labourers.add(name));
-        }
-
-        // Add reporter name if not already in preachers team
-        if (r.reporter_name && !r.preachers_team?.includes(r.reporter_name)) {
-            labourers.add(r.reporter_name);
+function deduplicateList(items) {
+    const seen = new Map();
+    items.forEach(item => {
+        const key = item.toLowerCase().trim();
+        if (!seen.has(key)) {
+            seen.set(key, item.trim());
         }
     });
-
-    return Array.from(labourers).sort();
+    return Array.from(seen.values()).sort();
 }
 
 /**
@@ -152,10 +172,10 @@ async function generateNarrative(reportData, command) {
     const openai = new OpenAI({ apiKey: config.openaiApiKey });
     const prompt = buildNarrativePrompt(reportData, command);
 
-    logger.info(`Generating narrative with ${command.voice} voice`);
+    logger.info(`Generating narrative for ${reportData.assemblyName} with ${command.voice} voice`);
 
     const completion = await openai.chat.completions.create({
-        model: 'gpt-4o',
+        model: 'gpt-5.2',
         messages: [
             {
                 role: 'system',
@@ -178,7 +198,7 @@ async function generateNarrative(reportData, command) {
  * Build system prompt based on SMC command
  */
 function buildSystemPrompt(command) {
-    let systemPrompt = 'You are writing a monthly evangelism ministry report. ';
+    let systemPrompt = 'You are writing a monthly evangelism ministry report for a specific cluster/assembly. ';
 
     if (command.voice === 'first_person') {
         systemPrompt += 'You are an EXECUTOR who was physically present during the evangelism activities. ';
@@ -194,74 +214,82 @@ function buildSystemPrompt(command) {
         systemPrompt += 'Write in neutral THIRD PERSON. Use "the team", "evangelists", etc.';
     }
 
-    systemPrompt += '\\n\\nTone: perseverance, courage, faithful proclamation, spiritual resistance overcome through prayer and boldness.';
-    systemPrompt += '\\nStyle: formal but passionate, factual but faith-filled, sober but hopeful.';
+    systemPrompt += '\n\nTone: perseverance, courage, faithful proclamation, spiritual resistance overcome through prayer and boldness.';
+    systemPrompt += '\nStyle: formal but passionate, factual but faith-filled, sober but hopeful.';
+    systemPrompt += '\n\nIMPORTANT: Only reference facts from the data provided. Do not invent specific incidents, names, or locations not in the data.';
 
     return systemPrompt;
 }
 
 /**
- * Build narrative prompt with statistics and context
+ * Build narrative prompt with only the selected fields
  */
 function buildNarrativePrompt(reportData, command) {
-    let prompt = `Write a monthly evangelism report following this structure:\\n\\n`;
+    let prompt = `Write a monthly evangelism report for ${reportData.assemblyName} following this structure:\n\n`;
 
-    prompt += `CONTEXT:\\n`;
-    prompt += `- Period: ${reportData.period}\\n`;
-    prompt += `- Cluster/Region: ${reportData.clusterName || config.churchName}\\n`;
-    prompt += `- Reporting Command: ${command.name}\\n\\n`;
+    prompt += `CONTEXT:\n`;
+    prompt += `- Assembly/Cluster: ${reportData.assemblyName}\n`;
+    prompt += `- Period: ${reportData.period}\n`;
+    prompt += `- Reporting Command: ${command.name}\n`;
+    prompt += `- Total Outreach Events: ${reportData.totalOutreaches}\n\n`;
 
-    prompt += `STATISTICS:\\n`;
-    prompt += `- Total Evangelism Reports: ${reportData.overall.totalReports}\\n`;
-    prompt += `- People Converted: ${reportData.overall.totalConversions}\\n`;
-    prompt += `- Sick Prayed For: ${reportData.overall.totalReached}\\n\\n`;
+    prompt += `STATISTICS:\n`;
+    prompt += `- People Converted: ${reportData.totalConverts}\n`;
+    prompt += `- Sick People Prayed For: ${reportData.totalSickPrayedFor}\n\n`;
 
-    prompt += `LOCATIONS ENTERED: ${reportData.locations.join(', ')}\\n\\n`;
+    prompt += `LOCATIONS PREACHED AT (unique, already deduplicated):\n`;
+    prompt += reportData.locations.map(l => `- ${l}`).join('\n');
+    prompt += `\n\n`;
 
-    prompt += `LABOURERS IN THE FIELD: ${reportData.labourers.join(', ')}\\n\\n`;
+    prompt += `ACTIVITY TYPES (unique, already deduplicated):\n`;
+    prompt += reportData.activityTypes.map(t => `- ${t}`).join('\n');
+    prompt += `\n\n`;
 
-    if (reportData.activityTypes.length > 0) {
-        prompt += `ACTIVITY TYPES:\\n`;
-        reportData.activityTypes.forEach(a => {
-            prompt += `- ${a.type}: ${a.count} times\\n`;
+    prompt += `LABOURERS / PREACHERS TEAM (unique, already deduplicated):\n`;
+    prompt += reportData.labourers.map(l => `- ${l}`).join('\n');
+    prompt += `\n\n`;
+
+    if (reportData.messageSummaries.length > 0) {
+        prompt += `MESSAGE SUMMARIES FROM INDIVIDUAL REPORTS (use these to identify themes):\n`;
+        reportData.messageSummaries.forEach((summary, i) => {
+            prompt += `${i + 1}. ${summary}\n`;
         });
-        prompt += `\\n`;
+        prompt += `\n`;
     }
 
-    prompt += `INSTRUCTIONS:\\n\\n`;
-    prompt += `Write a NARRATIVE REPORT section (3-4 paragraphs):\\n`;
-    prompt += `1. Opening: Describe how the Gospel was carried throughout the month\\n`;
-    prompt += `   - Mention the variety of locations (commuter buses, marketplaces, streets, homes, schools, open spaces)\\n`;
-    prompt += `   - Emphasize the message was not confined to church buildings but taken into daily life\\n\\n`;
+    prompt += `INSTRUCTIONS:\n\n`;
+    prompt += `Write a NARRATIVE REPORT section (3-4 paragraphs):\n`;
+    prompt += `1. Opening: Describe how the Gospel was carried throughout the month in ${reportData.assemblyName}\n`;
+    prompt += `   - Mention the specific locations listed above\n`;
+    prompt += `   - Emphasize the message was not confined to church buildings but taken into daily life\n\n`;
 
-    prompt += `2. Middle Paragraphs: Cover these themes\\n`;
-    prompt += `   - The clarity and conviction of the preaching (call to repentance, freedom from sin)\\n`;
-    prompt += `   - Evangelists testified of their own deliverance from specific sins/bondages\\n`;
-    prompt += `   - Resistance encountered (interruptions, loud music, public objections, confrontation)\\n`;
-    prompt += `   - The Word did not cease - it continued with persistence and boldness\\n`;
-    prompt += `   - Some who initially mocked later listened in silence or continued conversations after the preaching\\n`;
-    prompt += `   - Prayer for the sick (in transport, homes, streets) - hearts opened, space for salvation message\\n\\n`;
+    prompt += `2. Middle Paragraphs: Cover these themes\n`;
+    prompt += `   - The clarity and conviction of the preaching (reference actual message summaries above)\n`;
+    prompt += `   - Evangelists testified of their own deliverance from specific sins/bondages\n`;
+    prompt += `   - Resistance encountered (interruptions, loud music, public objections, confrontation)\n`;
+    prompt += `   - The Word did not cease - it continued with persistence and boldness\n`;
+    prompt += `   - Some who initially mocked later listened in silence or continued conversations after the preaching\n`;
+    prompt += `   - Prayer for the sick - hearts opened, space for salvation message\n\n`;
 
-    prompt += `3. Closing: Summarize the month's work\\n`;
-    prompt += `   - Steady obedience rather than isolated enthusiasm\\n`;
-    prompt += `   - Gospel heard repeatedly across key areas\\n`;
-    prompt += `   - Seed sown consistently\\n\\n`;
+    prompt += `3. Closing: Summarize the month's work\n`;
+    prompt += `   - Steady obedience rather than isolated enthusiasm\n`;
+    prompt += `   - Gospel heard repeatedly across key areas\n`;
+    prompt += `   - Seed sown consistently\n\n`;
 
-    prompt += `Then provide:\\n`;
-    prompt += `MESSAGE EMPHASIS (5 bullet points):\\n`;
-    prompt += `- List the theological themes emphasized in the preaching\\n`;
-    prompt += `- Examples: Repentance and remission of sins, Holiness as evidence of salvation, Christ as only source of freedom, etc.\\n\\n`;
+    prompt += `Then provide:\n`;
+    prompt += `MESSAGE EMPHASIS (5 bullet points):\n`;
+    prompt += `- Derive these from the actual MESSAGE SUMMARIES provided above\n`;
+    prompt += `- List the theological themes that were actually emphasized in the preaching\n\n`;
 
-    prompt += `CONCLUSION (2-3 sentences):\\n`;
-    prompt += `- Summarize the month with themes of perseverance, courage, faithful proclamation\\n`;
-    prompt += `- Mention resistance in certain places, but the Word continued to be spoken\\n`;
-    prompt += `- Note that Gospel moved through streets, transport, homes, marketplaces, into individual hearts\\n`;
-    prompt += `- Emphasize sustained obedience and foundation laid for future growth\\n\\n`;
+    prompt += `CONCLUSION (2-3 sentences):\n`;
+    prompt += `- Summarize the month with themes of perseverance, courage, faithful proclamation\n`;
+    prompt += `- Mention resistance in certain places, but the Word continued to be spoken\n`;
+    prompt += `- Emphasize sustained obedience and foundation laid for future growth\n\n`;
 
-    prompt += `Format your response EXACTLY like this:\\n`;
-    prompt += `NARRATIVE:\\n[3-4 paragraphs here]\\n\\n`;
-    prompt += `MESSAGE EMPHASIS:\\n- [bullet 1]\\n- [bullet 2]\\n- [bullet 3]\\n- [bullet 4]\\n- [bullet 5]\\n\\n`;
-    prompt += `CONCLUSION:\\n[2-3 sentences here]`;
+    prompt += `Format your response EXACTLY like this:\n`;
+    prompt += `NARRATIVE:\n[3-4 paragraphs here]\n\n`;
+    prompt += `MESSAGE EMPHASIS:\n- [bullet 1]\n- [bullet 2]\n- [bullet 3]\n- [bullet 4]\n- [bullet 5]\n\n`;
+    prompt += `CONCLUSION:\n[2-3 sentences here]`;
 
     return prompt;
 }
@@ -277,23 +305,23 @@ function parseNarrativeResponse(response) {
     };
 
     // Extract MESSAGE EMPHASIS section
-    const emphasisMatch = response.match(/MESSAGE EMPHASIS[:\\s]+([\\s\\S]*?)(?=\\n\\nCONCLUSION|$)/i);
+    const emphasisMatch = response.match(/MESSAGE EMPHASIS[:\s]+([\s\S]*?)(?=\n\nCONCLUSION|$)/i);
     if (emphasisMatch) {
         sections.messageEmphasis = emphasisMatch[1]
-            .split('\\n')
+            .split('\n')
             .filter(line => line.trim().match(/^[-•*]/))
-            .map(line => line.replace(/^[-•*]\\s*/, '').trim())
+            .map(line => line.replace(/^[-•*]\s*/, '').trim())
             .filter(Boolean);
     }
 
     // Extract CONCLUSION section
-    const conclusionMatch = response.match(/CONCLUSION[:\\s]+([\\s\\S]+?)$/i);
+    const conclusionMatch = response.match(/CONCLUSION[:\s]+([\s\S]+?)$/i);
     if (conclusionMatch) {
         sections.conclusion = conclusionMatch[1].trim();
     }
 
     // Extract NARRATIVE (everything before MESSAGE EMPHASIS)
-    const narrativeMatch = response.match(/NARRATIVE[:\\s]+([\\s\\S]*?)(?=\\n\\nMESSAGE EMPHASIS|$)/i);
+    const narrativeMatch = response.match(/NARRATIVE[:\s]+([\s\S]*?)(?=\n\nMESSAGE EMPHASIS|$)/i);
     if (narrativeMatch) {
         sections.narrative = narrativeMatch[1].trim();
     } else {
@@ -313,22 +341,23 @@ function parseNarrativeResponse(response) {
  * Generate fallback narrative when AI is not available
  */
 function generateFallbackNarrative(reportData) {
-    let narrative = `In ${reportData.period}, the Gospel was carried faithfully throughout ${reportData.clusterName || 'the region'}. `;
-    narrative += `Day after day, the Word of God was proclaimed in commuter omnibuses, marketplaces, residential streets, workplaces, schools, and open spaces. `;
-    narrative += `The message was not confined to church buildings but was taken into the ordinary flow of daily life.\\n\\n`;
+    const name = reportData.assemblyName;
+    let narrative = `In ${reportData.period}, the Gospel was carried faithfully throughout ${name}. `;
+    narrative += `Day after day, the Word of God was proclaimed in ${reportData.locations.join(', ') || 'various locations'}. `;
+    narrative += `The message was not confined to church buildings but was taken into the ordinary flow of daily life.\n\n`;
 
     narrative += `The preaching throughout the month was marked by clarity and conviction. The call was not merely to religious affiliation, `;
     narrative += `but to repentance and true freedom from sin through Jesus Christ. Evangelists testified openly of their own deliverance from `;
     narrative += `immorality, ancestral practices, gossip, bitterness, drug abuse, and other forms of bondage. These testimonies became living proof `;
-    narrative += `that the power of Christ is still able to transform lives.\\n\\n`;
+    narrative += `that the power of Christ is still able to transform lives.\n\n`;
 
     narrative += `In several places, resistance arose. There were interruptions, loud music intended to drown out the message, public objections, `;
     narrative += `and moments of confrontation. Yet the preaching did not cease. The Word continued to be declared with persistence and boldness. `;
     narrative += `In some instances, those who initially mocked later listened in silence. In others, conversations continued long after the `;
-    narrative += `open-air preaching had ended.\\n\\n`;
+    narrative += `open-air preaching had ended.\n\n`;
 
-    narrative += `Prayer for the sick accompanied the preaching of the Gospel. Individuals in pain and distress were prayed for in transport, `;
-    narrative += `in homes, and along the streets. These moments of prayer opened hearts and created space for the message of salvation to be received. `;
+    narrative += `Prayer for the sick accompanied the preaching of the Gospel. Individuals in pain and distress were prayed for across various locations. `;
+    narrative += `These moments of prayer opened hearts and created space for the message of salvation to be received. `;
     narrative += `Throughout the month, the work reflected steady obedience rather than isolated enthusiasm. The Gospel was heard repeatedly across `;
     narrative += `key areas, and the seed was sown consistently.`;
 
@@ -352,8 +381,11 @@ function generateFallbackMessageEmphasis() {
  * Generate fallback conclusion
  */
 function generateFallbackConclusion(reportData) {
-    return `${reportData.period} in ${reportData.clusterName || 'the region'} was marked by perseverance, courage, and faithful proclamation. ` +
+    return `${reportData.period} in ${reportData.assemblyName} was marked by perseverance, courage, and faithful proclamation. ` +
         `Though resistance arose in certain places, the Word continued to be spoken. The Gospel moved through streets and transport routes, ` +
         `through homes and marketplaces, and into individual hearts. The work was carried out not as a single event, but as sustained obedience. ` +
         `The fruit recorded reflects continued labour in the field and a foundation laid for future growth.`;
 }
+
+// Keep backward compatibility - export old function name pointing to new logic
+export { generateAssemblyReports as generateMonthlyReport };

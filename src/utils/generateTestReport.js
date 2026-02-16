@@ -1,29 +1,32 @@
 /**
- * Test Script for SMC Report Generation
+ * Test Script for Assembly-Based Report Generation
  * 
- * Generates a sample monthly evangelism report using the SMC framework.
- * This script demonstrates the full pipeline from data extraction to PDF generation.
+ * Generates monthly evangelism reports per assembly.
+ * Each assembly gets its own separate PDF report.
  * 
  * Usage:
  *   node src/utils/generateTestReport.js
+ *   node src/utils/generateTestReport.js --month 2026-02
+ *   node src/utils/generateTestReport.js --month 2026-02 --assembly "Assembly Name"
  *   node src/utils/generateTestReport.js --command "[Compiled from Executor Podcast]"
- *   node src/utils/generateTestReport.js --cluster "Mutare Cluster" --month 2026-01
  */
 
-import { generateMonthlyReport } from '../services/aiReportGenerator.js';
+import { generateAssemblyReports, generateAssemblyReport } from '../services/aiReportGenerator.js';
 import { generatePDFReport } from '../services/pdfGenerator.js';
+import { getAllAssemblies } from '../database/db.js';
 import logger from './logger.js';
 
 // Parse command line arguments
 const args = process.argv.slice(2);
 const options = {};
+let assemblyFilter = null;
 
 for (let i = 0; i < args.length; i++) {
     if (args[i] === '--command') {
         options.command = args[i + 1];
         i++;
-    } else if (args[i] === '--cluster') {
-        options.clusterName = args[i + 1];
+    } else if (args[i] === '--assembly') {
+        assemblyFilter = args[i + 1];
         i++;
     } else if (args[i] === '--month') {
         const month = args[i + 1]; // Format: YYYY-MM
@@ -39,13 +42,8 @@ for (let i = 0; i < args.length; i++) {
 
 // Default values if not provided
 if (!options.startDate) {
-    // Default to January 2026 (matching the example PDF)
     options.startDate = '2026-01-01';
     options.endDate = '2026-01-31';
-}
-
-if (!options.clusterName) {
-    options.clusterName = 'Mutare Cluster';
 }
 
 if (!options.command) {
@@ -53,58 +51,68 @@ if (!options.command) {
 }
 
 logger.info('='.repeat(60));
-logger.info('SMC REPORT GENERATION TEST');
+logger.info('ASSEMBLY-BASED REPORT GENERATION');
 logger.info('='.repeat(60));
 logger.info(`Date Range: ${options.startDate} to ${options.endDate}`);
-logger.info(`Cluster: ${options.clusterName}`);
 logger.info(`Command: ${options.command}`);
+if (assemblyFilter) {
+    logger.info(`Assembly Filter: ${assemblyFilter}`);
+}
 logger.info('='.repeat(60));
 
 async function runTest() {
     try {
-        // Step 1: Generate report data
-        logger.info('Step 1: Generating report data...');
-        const reportData = await generateMonthlyReport(
-            options.startDate,
-            options.endDate,
-            {
-                clusterName: options.clusterName,
-                command: options.command
+        let reports;
+
+        if (assemblyFilter) {
+            // Generate report for a specific assembly
+            const assemblies = await getAllAssemblies();
+            const assembly = assemblies.find(a =>
+                a.name.toLowerCase() === assemblyFilter.toLowerCase()
+            );
+
+            if (!assembly) {
+                logger.error(`Assembly "${assemblyFilter}" not found. Available assemblies:`);
+                assemblies.forEach(a => logger.info(`  - ${a.name}`));
+                process.exit(1);
             }
-        );
 
-        logger.info('Report data generated successfully!');
-        logger.info(`  - Locations: ${reportData.locations.length}`);
-        logger.info(`  - Labourers: ${reportData.labourers.length}`);
-        logger.info(`  - Converts: ${reportData.overall.totalConversions}`);
-        logger.info(`  - Sick Prayed For: ${reportData.overall.totalReached}`);
-        logger.info(`  - Command Used: ${reportData.command}`);
-        logger.info(`  - Map Generated: ${reportData.mapImagePath ? 'Yes' : 'No'}`);
+            logger.info(`Generating report for: ${assembly.name}`);
+            const report = await generateAssemblyReport(assembly, options.startDate, options.endDate, options);
+            reports = report.totalOutreaches > 0 ? [report] : [];
+        } else {
+            // Generate reports for all assemblies
+            logger.info('Generating reports for ALL assemblies...');
+            reports = await generateAssemblyReports(options.startDate, options.endDate, options);
+        }
 
-        // Step 2: Generate PDF
-        logger.info('\\nStep 2: Generating PDF report...');
-        const pdfPath = await generatePDFReport(reportData);
+        if (reports.length === 0) {
+            logger.info('No reports found for any assembly in this period.');
+            process.exit(0);
+        }
 
-        logger.info('='.repeat(60));
+        // Generate PDFs for each assembly report
+        const pdfPaths = [];
+        for (const report of reports) {
+            logger.info(`\n--- ${report.assemblyName} ---`);
+            logger.info(`  Outreaches: ${report.totalOutreaches}`);
+            logger.info(`  Locations: ${report.locations.join(', ')}`);
+            logger.info(`  Labourers: ${report.labourers.join(', ')}`);
+            logger.info(`  Converts: ${report.totalConverts}`);
+            logger.info(`  Sick Prayed For: ${report.totalSickPrayedFor}`);
+            logger.info(`  Activity Types: ${report.activityTypes.join(', ')}`);
+
+            const pdfPath = await generatePDFReport(report);
+            pdfPaths.push(pdfPath);
+            logger.info(`  PDF: ${pdfPath}`);
+        }
+
+        logger.info('\n' + '='.repeat(60));
         logger.info('SUCCESS!');
         logger.info('='.repeat(60));
-        logger.info(`PDF Report Generated: ${pdfPath}`);
+        logger.info(`Generated ${pdfPaths.length} assembly report(s):`);
+        pdfPaths.forEach(p => logger.info(`  - ${p}`));
         logger.info('='.repeat(60));
-
-        // Display narrative preview
-        if (reportData.narrative) {
-            logger.info('\\nNARRATIVE PREVIEW:');
-            const preview = reportData.narrative.substring(0, 300) + '...';
-            logger.info(preview);
-        }
-
-        // Display message emphasis
-        if (reportData.messageEmphasis && reportData.messageEmphasis.length > 0) {
-            logger.info('\\nMESSAGE EMPHASIS:');
-            reportData.messageEmphasis.forEach(item => {
-                logger.info(`  • ${item}`);
-            });
-        }
 
     } catch (error) {
         logger.error('Test failed:', error);

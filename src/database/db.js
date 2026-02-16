@@ -335,4 +335,24 @@ export async function getActivityTypeBreakdown(startDate, endDate) {
   return Object.values(groups).sort((a, b) => b.count - a.count);
 }
 
+/**
+ * Get reports for a specific assembly within a date range (only fields needed for AI report)
+ * @param {number} assemblyId - Assembly ID
+ * @param {string} startDate - Start date (YYYY-MM-DD)
+ * @param {string} endDate - End date (YYYY-MM-DD)
+ * @returns {Promise<Array>} Reports with selected fields only
+ */
+export async function getReportsForAssembly(assemblyId, startDate, endDate) {
+  const { data, error } = await supabase
+    .from('reports')
+    .select('activity_date, location, activity_type, preachers_team, message_summary, converts, sick_prayed_for')
+    .eq('assembly_id', assemblyId)
+    .gte('activity_date', startDate)
+    .lte('activity_date', endDate)
+    .order('activity_date', { ascending: true });
+
+  if (error) throw error;
+  return data;
+}
+
 export default supabase;

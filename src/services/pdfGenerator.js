@@ -22,10 +22,11 @@ if (!existsSync(REPORTS_DIR)) {
  * @returns {Promise<string>} Path to generated PDF
  */
 export async function generatePDFReport(reportData) {
-    const filename = `evangelism_report_${reportData.startDate}_to_${reportData.endDate}.pdf`;
+    const assemblySlug = (reportData.assemblyName || 'all').replace(/\s+/g, '_');
+    const filename = `evangelism_report_${assemblySlug}_${reportData.startDate}_to_${reportData.endDate}.pdf`;
     const filepath = join(REPORTS_DIR, filename);
 
-    logger.info(`Generating SMC PDF report: ${filename}`);
+    logger.info(`Generating PDF report for ${reportData.assemblyName || 'All Assemblies'}: ${filename}`);
 
     return new Promise((resolve, reject) => {
         try {
@@ -72,17 +73,19 @@ function buildSMCPDFContent(doc, reportData) {
 
     doc.moveDown(0.5);
 
+    // Assembly name prominently displayed
+    if (reportData.assemblyName) {
+        doc.fontSize(20)
+            .fillColor('#222')
+            .font('Helvetica-Bold')
+            .text(reportData.assemblyName, { align: 'center' });
+        doc.moveDown(0.3);
+    }
+
     doc.fontSize(18)
         .fillColor('#333')
         .font('Helvetica')
         .text(reportData.period, { align: 'center' });
-
-    if (reportData.clusterName) {
-        doc.moveDown(0.3);
-        doc.fontSize(14)
-            .fillColor('#666')
-            .text(reportData.clusterName, { align: 'center' });
-    }
 
     doc.moveDown(2);
 
