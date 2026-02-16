@@ -5,7 +5,7 @@
  * This creates simple geometric plots like the example PDF, not geographic maps
  */
 
-import { createCanvas } from 'canvas';
+
 import { MAP_CONFIG } from '../config/smc_visual_commands.js';
 import logger from '../utils/logger.js';
 import { join } from 'path';
@@ -62,6 +62,16 @@ const ZIMBABWE_COORDINATES = {
  */
 export async function generateLocationPlot(locations, title, outputPath) {
     try {
+        // Dynamic import - canvas is optional, don't crash the bot if not installed
+        let createCanvas;
+        try {
+            const canvasModule = await import('canvas');
+            createCanvas = canvasModule.createCanvas;
+        } catch (e) {
+            logger.warn('canvas package not installed - skipping map generation. Run: npm install canvas');
+            return null;
+        }
+
         logger.info(`Generating location plot for ${locations.length} locations`);
 
         // Get coordinates for locations
