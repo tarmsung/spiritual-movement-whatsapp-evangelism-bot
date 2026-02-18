@@ -38,7 +38,9 @@ export async function handleMessage(sock, msg, messageText) {
     const normalizedMessage = messageText.trim().toLowerCase();
 
     if (normalizedMessage === 'evangelism') {
-        await startReportForm(sock, userJid);
+        await sock.sendMessage(userJid, {
+            text: '🚫❌ Evangelism reports cannot be submitted via DM.\n\n📢 Please use the group to submit your report! 🙏'
+        });
         return;
     }
 
