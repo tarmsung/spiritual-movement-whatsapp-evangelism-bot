@@ -123,8 +123,12 @@ export async function createReport(reportData) {
 
 /**
  * Create report from group message
+ * @param {number} assemblyId
+ * @param {Object} reportData
+ * @param {string} senderPhone
+ * @param {string} waMessageId - WhatsApp message ID (for deletion tracking)
  */
-export async function createGroupReport(assemblyId, reportData, senderPhone) {
+export async function createGroupReport(assemblyId, reportData, senderPhone, waMessageId = null) {
   const { data, error } = await supabase
     .from('reports')
     .insert([{
@@ -142,12 +146,56 @@ export async function createGroupReport(assemblyId, reportData, senderPhone) {
       reporter_name: reportData.reporter_name,
       reporter_phone: senderPhone,
       source: 'group_message',
-      posted_to_group: true
+      posted_to_group: true,
+      wa_message_id: waMessageId
     }])
     .select();
 
   if (error) throw error;
   return { lastInsertRowid: data[0].id };
+}
+
+/**
+ * Delete a report by WhatsApp message ID (used when reporter deletes their message)
+ * @param {string} waMessageId - WhatsApp message ID
+ * @returns {Promise<Object|null>} Deleted report data or null if not found
+ */
+export async function deleteReportByMessageId(waMessageId) {
+  // First fetch the report (with assembly info) so we can include it in the group notification
+  const { data: report, error: fetchError } = await supabase
+    .from('reports')
+    .select(`
+      id,
+      reporter_name,
+      activity_date,
+      location,
+      assemblies (
+        name,
+        whatsapp_group_id
+      )
+    `)
+    .eq('wa_message_id', waMessageId)
+    .single();
+
+  if (fetchError && fetchError.code === 'PGRST116') return null; // Not found — not a tracked report
+  if (fetchError) throw fetchError;
+
+  // Now delete it
+  const { error: deleteError } = await supabase
+    .from('reports')
+    .delete()
+    .eq('wa_message_id', waMessageId);
+
+  if (deleteError) throw deleteError;
+
+  return {
+    id: report.id,
+    reporter_name: report.reporter_name,
+    activity_date: report.activity_date,
+    location: report.location,
+    assembly_name: report.assemblies?.name,
+    whatsapp_group_id: report.assemblies?.whatsapp_group_id
+  };
 }
 
 export async function getReport(id) {

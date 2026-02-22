@@ -8,6 +8,7 @@ import qrcode from 'qrcode-terminal';
 import logger from '../utils/logger.js';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
+import { handleMessageDelete } from './messageDeleteHandler.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -123,6 +124,18 @@ export async function startWhatsAppConnection(messageHandler) {
             } catch (error) {
                 logger.error('Error processing message:', error);
             }
+        }
+    });
+
+    // Handle message deletions (reporter deletes their own report message)
+    sock.ev.on('messages.delete', async ({ keys }) => {
+        try {
+            if (keys && keys.length > 0) {
+                logger.info(`[CONNECTION] messages.delete event - ${keys.length} message(s) deleted`);
+                await handleMessageDelete(sock, keys);
+            }
+        } catch (error) {
+            logger.error('[CONNECTION] Error handling message deletion:', error);
         }
     });
 

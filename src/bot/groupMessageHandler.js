@@ -72,7 +72,7 @@ export async function handleGroupMessage(sock, msg, messageText) {
         }
 
         // Save the report
-        const result = await createGroupReport(assembly.id, parsedReport, senderPhone);
+        const result = await createGroupReport(assembly.id, parsedReport, senderPhone, msg.key.id);
 
         logger.info(`[GROUP] Report saved successfully with ID: ${result.lastInsertRowid}`);
 
