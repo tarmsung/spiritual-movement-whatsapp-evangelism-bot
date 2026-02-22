@@ -77,14 +77,27 @@ export async function startWhatsAppConnection(messageHandler) {
 
         for (const msg of messages) {
             try {
+                const remoteJid = msg.key.remoteJid;
+                const isGroup = remoteJid?.endsWith('@g.us');
+
+                // Check for "Delete for Everyone" — Baileys delivers this as a protocolMessage type 0 (REVOKE)
+                if (msg.message?.protocolMessage?.type === 0 && isGroup) {
+                    const revokedKey = msg.message.protocolMessage.key;
+                    if (revokedKey) {
+                        logger.info(`[CONNECTION] Protocol REVOKE detected — revoking key: ${JSON.stringify(revokedKey)}`);
+                        // Use the participant from the outer message (who deleted it)
+                        revokedKey.remoteJid = revokedKey.remoteJid || remoteJid;
+                        await handleMessageDelete(sock, [revokedKey]);
+                    }
+                    continue;
+                }
+
                 // Ignore messages from self
                 if (msg.key.fromMe) {
                     logger.debug(`[CONNECTION] Ignoring message from self (fromMe=true)`);
                     continue;
                 }
 
-                const remoteJid = msg.key.remoteJid;
-                const isGroup = remoteJid?.endsWith('@g.us');
                 logger.info(`[CONNECTION] Message from: ${remoteJid} (group: ${isGroup})`);
 
                 // Extract message text from different message types
@@ -126,6 +139,7 @@ export async function startWhatsAppConnection(messageHandler) {
             }
         }
     });
+
 
     // Handle message deletions (reporter deletes their own report message)
     sock.ev.on('messages.delete', async ({ keys }) => {
