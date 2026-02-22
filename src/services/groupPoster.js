@@ -68,6 +68,12 @@ function formatReportMessage(report) {
     message += '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n';
     message += `📅 Date: ${formatDate(report.activity_date)}\n`;
     message += `📍 Location: ${report.location}\n`;
+    if (report.area) {
+        message += `🏘️ Area: ${report.area}\n`;
+    }
+    if (report.city) {
+        message += `🏙️ City: ${report.city}\n`;
+    }
     message += `📋 Activity: ${report.activity_type}\n`;
     message += `👥 Team: ${report.preachers_team}\n\n`;
 
@@ -78,8 +84,8 @@ function formatReportMessage(report) {
     }
 
     message += `📈 Results:\n`;
-    message += `✝️ Converts: ${report.converts}\n`;
-    message += `🙏 Sick Prayed For: ${report.sick_prayed_for}\n\n`;
+    message += `✝️ Saved: ${report.saved}\n`;
+    message += `🙏 Healed: ${report.healed}\n\n`;
 
     message += `📝 Reporter: ${report.reporter_name}\n`;
     message += '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n';

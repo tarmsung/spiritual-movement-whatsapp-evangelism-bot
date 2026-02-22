@@ -98,8 +98,8 @@ async function runTest() {
             logger.info(`  Outreaches: ${report.totalOutreaches}`);
             logger.info(`  Locations: ${report.locations.join(', ')}`);
             logger.info(`  Labourers: ${report.labourers.join(', ')}`);
-            logger.info(`  Converts: ${report.totalConverts}`);
-            logger.info(`  Sick Prayed For: ${report.totalSickPrayedFor}`);
+            logger.info(`  Saved: ${report.totalSaved}`);
+            logger.info(`  Healed: ${report.totalHealed}`);
             logger.info(`  Activity Types: ${report.activityTypes.join(', ')}`);
 
             const pdfPath = await generatePDFReport(report);

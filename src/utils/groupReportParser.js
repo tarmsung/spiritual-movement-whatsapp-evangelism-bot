@@ -37,7 +37,15 @@ const FIELD_ALIASES = [
     },
     {
         field: 'location',
-        aliases: ['Location', 'Place', 'Venue', 'Area']
+        aliases: ['Location', 'Place', 'Venue']
+    },
+    {
+        field: 'area',
+        aliases: ['Area', 'Neighbourhood', 'Neighborhood']
+    },
+    {
+        field: 'city',
+        aliases: ['City', 'Town']
     },
     {
         field: 'activity_type',
@@ -56,12 +64,12 @@ const FIELD_ALIASES = [
         aliases: ['Response/Notable Moments', 'Notable Moments', 'Notable moments', 'Response', 'Moments', 'Highlights']
     },
     {
-        field: 'converts',
-        aliases: ['Converts', 'Convert', 'Souls Won', 'Souls']
+        field: 'saved',
+        aliases: ['Saved', 'Converts', 'Convert', 'Souls Won', 'Souls']
     },
     {
-        field: 'sick_prayed_for',
-        aliases: ['Sick prayed for', 'Sick Prayed For', 'Healed', 'Healing', 'Prayed for', 'Sick']
+        field: 'healed',
+        aliases: ['Healed', 'Healing', 'Sick prayed for', 'Sick Prayed For', 'Prayed for', 'Sick']
     },
     {
         field: 'reporter_name',
@@ -127,7 +135,7 @@ export function parseReport(messageText) {
         value = value.replace(/[ \t]+/g, ' ').replace(/\n\s*\n/g, '\n').trim();
 
         // Convert number fields
-        if (current.field === 'converts' || current.field === 'sick_prayed_for') {
+        if (current.field === 'saved' || current.field === 'healed') {
             const num = parseInt(value);
             value = isNaN(num) ? 0 : num;
         }
@@ -217,12 +225,12 @@ export function validateParsedReport(report) {
     }
 
     // Validate numbers
-    if (report.converts !== undefined && typeof report.converts !== 'number') {
-        errors.push('Converts must be a number');
+    if (report.saved !== undefined && typeof report.saved !== 'number') {
+        errors.push('Saved must be a number');
     }
 
-    if (report.sick_prayed_for !== undefined && typeof report.sick_prayed_for !== 'number') {
-        errors.push('Healed/Sick prayed for must be a number');
+    if (report.healed !== undefined && typeof report.healed !== 'number') {
+        errors.push('Healed must be a number');
     }
 
     return {

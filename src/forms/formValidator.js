@@ -114,6 +114,44 @@ export function validateLocation(input) {
 }
 
 /**
+ * Validate area input
+ * @param {string} input
+ * @returns {{valid: boolean, value?: string, error?: string}}
+ */
+export function validateArea(input) {
+    const area = input.trim();
+
+    if (area.length < 2) {
+        return { valid: false, error: 'Area must be at least 2 characters long.' };
+    }
+
+    if (area.length > 200) {
+        return { valid: false, error: 'Area is too long (max 200 characters).' };
+    }
+
+    return { valid: true, value: area };
+}
+
+/**
+ * Validate city input
+ * @param {string} input
+ * @returns {{valid: boolean, value?: string, error?: string}}
+ */
+export function validateCity(input) {
+    const city = input.trim();
+
+    if (city.length < 2) {
+        return { valid: false, error: 'City must be at least 2 characters long.' };
+    }
+
+    if (city.length > 200) {
+        return { valid: false, error: 'City is too long (max 200 characters).' };
+    }
+
+    return { valid: true, value: city };
+}
+
+/**
  * Validate number input (for people reached/conversions)
  * @param {string} input
  * @param {string} fieldName

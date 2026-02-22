@@ -72,7 +72,7 @@ async function viewDatabase() {
       console.log(`   Date: ${report.activity_date}`);
       console.log(`   Location: ${report.location}`);
       console.log(`   Activity: ${report.activity_type}`);
-      console.log(`   Converts: ${report.converts}`);
+      console.log(`   Saved: ${report.converts}`);
       console.log(`   Reporter: ${report.reporter_name}`);
       console.log(`   Assembly: ${report.assemblies ? report.assemblies.name : 'N/A'}`);
       console.log(`   Source: ${report.source}`);
@@ -105,8 +105,8 @@ async function viewDatabase() {
       console.log(`   Activity: ${report.activity_type}`);
       console.log(`   Preachers Team: ${report.preachers_team}`);
       console.log(`   Message Summary: ${report.message_summary ? report.message_summary.substring(0, 60) + '...' : ''}`);
-      console.log(`   Converts: ${report.converts}`);
-      console.log(`   Sick Prayed For: ${report.sick_prayed_for}`);
+      console.log(`   Saved: ${report.saved}`);
+      console.log(`   Healed: ${report.healed}`);
       console.log(`   Reporter: ${report.reporter_name}`);
       console.log(`   Assembly: ${report.assemblies ? report.assemblies.name : 'N/A'}`);
       console.log(`   Created: ${report.created_at}`);

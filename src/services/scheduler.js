@@ -125,8 +125,8 @@ function formatAssemblySummaryMessage(report) {
     message += 'KEY STATISTICS\n';
     message += '━━━━━━━━━━━━━━━━\n';
     message += `📝 Total Outreaches: ${report.totalOutreaches}\n`;
-    message += `✝️ Converts: ${formatNumber(report.totalConverts)}\n`;
-    message += `🙏 Sick Prayed For: ${formatNumber(report.totalSickPrayedFor)}\n\n`;
+    message += `✝️ Saved: ${formatNumber(report.totalSaved)}\n`;
+    message += `🙏 Healed: ${formatNumber(report.totalHealed)}\n\n`;
 
     if (report.locations.length > 0) {
         message += 'LOCATIONS PREACHED AT\n';

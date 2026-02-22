@@ -171,8 +171,8 @@ async function processMonthSelection(sock, userJid, message, state) {
         let summary = `📊 *${assembly.name} — ${selectedMonth.label} REPORT*\n`;
         summary += '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n';
         summary += `📝 Total Outreaches: ${reportData.totalOutreaches}\n`;
-        summary += `✝️ Converts: ${reportData.totalConverts}\n`;
-        summary += `🙏 Sick Prayed For: ${reportData.totalSickPrayedFor}\n\n`;
+        summary += `✝️ Saved: ${reportData.totalSaved}\n`;
+        summary += `🙏 Healed: ${reportData.totalHealed}\n\n`;
 
         if (reportData.locations.length > 0) {
             summary += `📍 Locations: ${reportData.locations.join(', ')}\n\n`;

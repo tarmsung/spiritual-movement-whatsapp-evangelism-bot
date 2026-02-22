@@ -80,8 +80,9 @@ export async function handleGroupMessage(sock, msg, messageText) {
         const confirmMsg = `✅ *Evangelism Report Saved!* @${senderPhone}\n\n` +
             `📋 Report #${result.lastInsertRowid}\n` +
             `📅 Date: ${parsedReport.activity_date}\n` +
-            `📍 Location: ${parsedReport.location}\n` +
-            `✝️ Converts: ${parsedReport.converts}\n` +
+            `🏘️ Area: ${parsedReport.area || 'N/A'}\n` +
+            `✝️ Saved: ${parsedReport.saved}\n` +
+            `🙏 Healed: ${parsedReport.healed}\n` +
             `🏛️ Assembly: ${assembly.name}\n\n` +
             `Thank you for your faithfulness! 🙏`;
 

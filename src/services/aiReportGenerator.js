@@ -88,8 +88,8 @@ export async function generateAssemblyReport(assembly, startDate, endDate, optio
         .filter(Boolean);
 
     // Aggregate stats
-    const totalConverts = reports.reduce((sum, r) => sum + (r.converts || 0), 0);
-    const totalSickPrayedFor = reports.reduce((sum, r) => sum + (r.sick_prayed_for || 0), 0);
+    const totalSaved = reports.reduce((sum, r) => sum + (r.saved || 0), 0);
+    const totalHealed = reports.reduce((sum, r) => sum + (r.healed || 0), 0);
 
     // Build report data
     const reportData = {
@@ -99,8 +99,8 @@ export async function generateAssemblyReport(assembly, startDate, endDate, optio
         endDate,
         command: command.name,
         totalOutreaches: reports.length,
-        totalConverts,
-        totalSickPrayedFor,
+        totalSaved,
+        totalHealed,
         locations: uniqueLocations,
         labourers: uniquePreachers,
         activityTypes: uniqueActivityTypes,
@@ -108,8 +108,8 @@ export async function generateAssemblyReport(assembly, startDate, endDate, optio
         // Keep overall for backward compatibility with PDF generator
         overall: {
             totalReports: reports.length,
-            totalConversions: totalConverts,
-            totalReached: totalSickPrayedFor
+            totalSaved: totalSaved,
+            totalHealed: totalHealed
         }
     };
 
@@ -338,8 +338,8 @@ function buildNarrativePrompt(reportData, command) {
     prompt += `- Total Outreach Events: ${reportData.totalOutreaches}\n\n`;
 
     prompt += `STATISTICS:\n`;
-    prompt += `- People Converted: ${reportData.totalConverts}\n`;
-    prompt += `- Sick People Prayed For: ${reportData.totalSickPrayedFor}\n\n`;
+    prompt += `- People Saved: ${reportData.totalSaved}\n`;
+    prompt += `- People Healed: ${reportData.totalHealed}\n\n`;
 
     prompt += `LOCATIONS PREACHED AT (unique, already deduplicated):\n`;
     prompt += reportData.locations.map(l => `- ${l}`).join('\n');

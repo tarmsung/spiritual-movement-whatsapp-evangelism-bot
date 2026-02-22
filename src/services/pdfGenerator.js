@@ -149,7 +149,7 @@ function buildSMCPDFContent(doc, reportData) {
     doc.fontSize(12)
         .fillColor('#000')
         .font('Helvetica')
-        .text(`${reportData.overall.totalConversions} people gave their lives to Christ.`);
+        .text(`${reportData.overall.totalSaved} people gave their lives to Christ.`);
 
     doc.moveDown(1);
 
@@ -162,7 +162,7 @@ function buildSMCPDFContent(doc, reportData) {
     doc.fontSize(12)
         .fillColor('#000')
         .font('Helvetica')
-        .text(`${reportData.overall.totalReached} individuals were prayed for in sickness.`);
+        .text(`${reportData.overall.totalHealed} individuals were prayed for and healed.`);
 
     doc.moveDown(2);
 

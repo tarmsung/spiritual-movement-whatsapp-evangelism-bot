@@ -9,6 +9,8 @@ import {
     validateAssemblySelection,
     validateDate,
     validateLocation,
+    validateArea,
+    validateCity,
     validateNumber,
     validateActivityType,
     validateTeam,
@@ -27,15 +29,17 @@ const STEPS = {
     ASSEMBLY: 0,
     DATE: 1,
     LOCATION: 2,
-    ACTIVITY_TYPE: 3,
-    CUSTOM_ACTIVITY_TYPE: 4,
-    PREACHERS_TEAM: 5,
-    MESSAGE_SUMMARY: 6,
-    RESPONSE_MOMENTS: 7,
-    CONVERTS: 8,
-    SICK_PRAYED_FOR: 9,
-    REPORTER_NAME: 10,
-    CONFIRMATION: 11
+    AREA: 3,
+    CITY: 4,
+    ACTIVITY_TYPE: 5,
+    CUSTOM_ACTIVITY_TYPE: 6,
+    PREACHERS_TEAM: 7,
+    MESSAGE_SUMMARY: 8,
+    RESPONSE_MOMENTS: 9,
+    SAVED: 10,
+    HEALED: 11,
+    REPORTER_NAME: 12,
+    CONFIRMATION: 13
 };
 
 /**
@@ -98,6 +102,12 @@ export async function processFormResponse(sock, userJid, message) {
         case STEPS.LOCATION:
             await processLocationStep(sock, userJid, message, formData);
             break;
+        case STEPS.AREA:
+            await processAreaStep(sock, userJid, message, formData);
+            break;
+        case STEPS.CITY:
+            await processCityStep(sock, userJid, message, formData);
+            break;
         case STEPS.ACTIVITY_TYPE:
             await processActivityTypeStep(sock, userJid, message, formData);
             break;
@@ -113,11 +123,11 @@ export async function processFormResponse(sock, userJid, message) {
         case STEPS.RESPONSE_MOMENTS:
             await processResponseMomentsStep(sock, userJid, message, formData);
             break;
-        case STEPS.CONVERTS:
-            await processConvertsStep(sock, userJid, message, formData);
+        case STEPS.SAVED:
+            await processSavedStep(sock, userJid, message, formData);
             break;
-        case STEPS.SICK_PRAYED_FOR:
-            await processSickPrayedForStep(sock, userJid, message, formData);
+        case STEPS.HEALED:
+            await processHealedStep(sock, userJid, message, formData);
             break;
         case STEPS.REPORTER_NAME:
             await processReporterNameStep(sock, userJid, message, formData);
@@ -223,9 +233,55 @@ async function processLocationStep(sock, userJid, message, formData) {
     formData.location = validation.value;
 
     // Move to next step
-    await saveUserFormState(userJid, STEPS.ACTIVITY_TYPE, formData);
+    await saveUserFormState(userJid, STEPS.AREA, formData);
 
     let response = `✅ Location: *${validation.value}*\n\n`;
+    response += '🏘️ *What area is this in?*\n';
+    response += '(Enter the area/neighbourhood name)';
+
+    await sock.sendMessage(userJid, { text: response });
+}
+
+/**
+ * Process area input
+ */
+async function processAreaStep(sock, userJid, message, formData) {
+    const validation = validateArea(message);
+
+    if (!validation.valid) {
+        await sock.sendMessage(userJid, { text: `❌ ${validation.error}` });
+        return;
+    }
+
+    formData.area = validation.value;
+
+    // Move to next step
+    await saveUserFormState(userJid, STEPS.CITY, formData);
+
+    let response = `✅ Area: *${validation.value}*\n\n`;
+    response += '🏙️ *What city/town is this in?*\n';
+    response += '(Enter the city or town name)';
+
+    await sock.sendMessage(userJid, { text: response });
+}
+
+/**
+ * Process city input
+ */
+async function processCityStep(sock, userJid, message, formData) {
+    const validation = validateCity(message);
+
+    if (!validation.valid) {
+        await sock.sendMessage(userJid, { text: `❌ ${validation.error}` });
+        return;
+    }
+
+    formData.city = validation.value;
+
+    // Move to next step
+    await saveUserFormState(userJid, STEPS.ACTIVITY_TYPE, formData);
+
+    let response = `✅ City: *${validation.value}*\n\n`;
     response += '📋 *What type of evangelism activity was this?*\n\n';
 
     config.activityTypes.forEach((type, index) => {
@@ -369,55 +425,55 @@ async function processResponseMomentsStep(sock, userJid, message, formData) {
     formData.response_moments = validation.value;
 
     // Move to next step
-    await saveUserFormState(userJid, STEPS.CONVERTS, formData);
+    await saveUserFormState(userJid, STEPS.SAVED, formData);
 
     let response = validation.value ? '✅ Notable moments recorded\n\n' : '— No notable moments\n\n';
-    response += '✝️ How many people made decisions/conversions?\n';
+    response += '✝️ How many people were saved?\n';
     response += '(Enter a number, or 0 if none)';
 
     await sock.sendMessage(userJid, { text: response });
 }
 
 /**
- * Process converts input
+ * Process saved input
  */
-async function processConvertsStep(sock, userJid, message, formData) {
-    const validation = validateNumber(message, 'Converts');
+async function processSavedStep(sock, userJid, message, formData) {
+    const validation = validateNumber(message, 'Saved');
 
     if (!validation.valid) {
         await sock.sendMessage(userJid, { text: `❌ ${validation.error}` });
         return;
     }
 
-    formData.converts = validation.value;
+    formData.saved = validation.value;
 
     // Move to next step
-    await saveUserFormState(userJid, STEPS.SICK_PRAYED_FOR, formData);
+    await saveUserFormState(userJid, STEPS.HEALED, formData);
 
-    let response = `✅ Converts: ${validation.value}\n\n`;
-    response += '🙏 How many sick people were prayed for?\n';
+    let response = `✅ Saved: ${validation.value}\n\n`;
+    response += '🙏 How many people were healed?\n';
     response += '(Enter a number, or 0 if none)';
 
     await sock.sendMessage(userJid, { text: response });
 }
 
 /**
- * Process sick prayed for input
+ * Process healed input
  */
-async function processSickPrayedForStep(sock, userJid, message, formData) {
-    const validation = validateNumber(message, 'Sick prayed for');
+async function processHealedStep(sock, userJid, message, formData) {
+    const validation = validateNumber(message, 'Healed');
 
     if (!validation.valid) {
         await sock.sendMessage(userJid, { text: `❌ ${validation.error}` });
         return;
     }
 
-    formData.sick_prayed_for = validation.value;
+    formData.healed = validation.value;
 
     // Move to next step
     await saveUserFormState(userJid, STEPS.REPORTER_NAME, formData);
 
-    let response = `✅ Sick Prayed For: ${validation.value}\n\n`;
+    let response = `✅ Healed: ${validation.value}\n\n`;
     response += '📝 Finally, please enter your full name (reporter):';
 
     await sock.sendMessage(userJid, { text: response });
@@ -445,14 +501,16 @@ async function processReporterNameStep(sock, userJid, message, formData) {
     summary += `TM Cluster: ${formData.assembly_name}\n`;
     summary += `📅 Date: ${formatDate(formData.activity_date)}\n`;
     summary += `📍 Location: ${formData.location}\n`;
+    summary += `🏘️ Area: ${formData.area}\n`;
+    summary += `🏙️ City: ${formData.city}\n`;
     summary += `📋 Activity Type: ${formData.activity_type}\n`;
     summary += `👥 Preachers/Team: ${formData.preachers_team}\n`;
     summary += `📖 Summary: ${formData.message_summary.substring(0, 100)}${formData.message_summary.length > 100 ? '...' : ''}\n`;
     if (formData.response_moments) {
         summary += `✨ Notable Moments: ${formData.response_moments.substring(0, 100)}${formData.response_moments.length > 100 ? '...' : ''}\n`;
     }
-    summary += `✝️ Converts: ${formData.converts}\n`;
-    summary += `🙏 Sick Prayed For: ${formData.sick_prayed_for}\n`;
+    summary += `✝️ Saved: ${formData.saved}\n`;
+    summary += `🙏 Healed: ${formData.healed}\n`;
     summary += `📝 Reporter: ${formData.reporter_name}\n`;
     summary += '━━━━━━━━━━━━━━━━━━━━\n\n';
     summary += '✅ Reply with *"yes"* to submit\n';

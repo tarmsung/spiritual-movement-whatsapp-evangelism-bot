@@ -103,12 +103,14 @@ export async function createReport(reportData) {
       assembly_id: reportData.assembly_id,
       activity_date: reportData.activity_date,
       location: reportData.location,
+      area: reportData.area || null,
+      city: reportData.city || null,
       activity_type: reportData.activity_type,
       preachers_team: reportData.preachers_team,
       message_summary: reportData.message_summary,
       response_moments: reportData.response_moments || null,
-      converts: reportData.converts || 0,
-      sick_prayed_for: reportData.sick_prayed_for || 0,
+      saved: reportData.saved ?? reportData.converts ?? 0,
+      healed: reportData.healed ?? reportData.sick_prayed_for ?? 0,
       reporter_name: reportData.reporter_name,
       reporter_phone: reportData.reporter_phone,
       source: reportData.source || 'form'
@@ -129,12 +131,14 @@ export async function createGroupReport(assemblyId, reportData, senderPhone) {
       assembly_id: assemblyId,
       activity_date: reportData.activity_date,
       location: reportData.location,
+      area: reportData.area || null,
+      city: reportData.city || null,
       activity_type: reportData.activity_type,
       preachers_team: reportData.preachers_team || reportData.reporter_name,
       message_summary: reportData.message_summary,
       response_moments: reportData.response_moments || null,
-      converts: reportData.converts || 0,
-      sick_prayed_for: reportData.sick_prayed_for || 0,
+      saved: reportData.saved ?? reportData.converts ?? 0,
+      healed: reportData.healed ?? reportData.sick_prayed_for ?? 0,
       reporter_name: reportData.reporter_name,
       reporter_phone: senderPhone,
       source: 'group_message',
@@ -268,7 +272,7 @@ export async function getMonthlyStatsByAssembly(startDate, endDate) {
   // 2. Get all reports in range
   const { data: reports, error } = await supabase
     .from('reports')
-    .select('assembly_id, converts, sick_prayed_for')
+    .select('assembly_id, saved, healed')
     .gte('activity_date', startDate)
     .lte('activity_date', endDate);
 
@@ -281,8 +285,8 @@ export async function getMonthlyStatsByAssembly(startDate, endDate) {
       assembly_id: assembly.id,
       assembly_name: assembly.name,
       total_reports: assemblyReports.length,
-      total_converts: assemblyReports.reduce((sum, r) => sum + (r.converts || 0), 0),
-      total_sick_prayed_for: assemblyReports.reduce((sum, r) => sum + (r.sick_prayed_for || 0), 0)
+      total_saved: assemblyReports.reduce((sum, r) => sum + (r.saved || 0), 0),
+      total_healed: assemblyReports.reduce((sum, r) => sum + (r.healed || 0), 0)
     };
   });
 
@@ -292,7 +296,7 @@ export async function getMonthlyStatsByAssembly(startDate, endDate) {
 export async function getMonthlyStats(startDate, endDate) {
   const { data: reports, error } = await supabase
     .from('reports')
-    .select('converts, sick_prayed_for')
+    .select('saved, healed')
     .gte('activity_date', startDate)
     .lte('activity_date', endDate);
 
@@ -300,15 +304,15 @@ export async function getMonthlyStats(startDate, endDate) {
 
   return {
     total_reports: reports.length,
-    total_converts: reports.reduce((sum, r) => sum + (r.converts || 0), 0),
-    total_sick_prayed_for: reports.reduce((sum, r) => sum + (r.sick_prayed_for || 0), 0)
+    total_saved: reports.reduce((sum, r) => sum + (r.saved || 0), 0),
+    total_healed: reports.reduce((sum, r) => sum + (r.healed || 0), 0)
   };
 }
 
 export async function getActivityTypeBreakdown(startDate, endDate) {
   const { data: reports, error } = await supabase
     .from('reports')
-    .select('activity_type, converts, sick_prayed_for')
+    .select('activity_type, saved, healed')
     .gte('activity_date', startDate)
     .lte('activity_date', endDate);
 
@@ -322,14 +326,14 @@ export async function getActivityTypeBreakdown(startDate, endDate) {
       groups[r.activity_type] = {
         activity_type: r.activity_type,
         count: 0,
-        total_converts: 0,
-        total_sick_prayed_for: 0
+        total_saved: 0,
+        total_healed: 0
       };
     }
 
     groups[r.activity_type].count++;
-    groups[r.activity_type].total_converts += (r.converts || 0);
-    groups[r.activity_type].total_sick_prayed_for += (r.sick_prayed_for || 0);
+    groups[r.activity_type].total_saved += (r.saved || 0);
+    groups[r.activity_type].total_healed += (r.healed || 0);
   });
 
   return Object.values(groups).sort((a, b) => b.count - a.count);
@@ -345,7 +349,7 @@ export async function getActivityTypeBreakdown(startDate, endDate) {
 export async function getReportsForAssembly(assemblyId, startDate, endDate) {
   const { data, error } = await supabase
     .from('reports')
-    .select('activity_date, location, activity_type, preachers_team, message_summary, converts, sick_prayed_for')
+    .select('activity_date, location, area, city, activity_type, preachers_team, message_summary, saved, healed')
     .eq('assembly_id', assemblyId)
     .gte('activity_date', startDate)
     .lte('activity_date', endDate)
