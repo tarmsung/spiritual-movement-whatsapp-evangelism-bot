@@ -129,29 +129,47 @@ export async function createReport(reportData) {
  * @param {string} waMessageId - WhatsApp message ID (for deletion tracking)
  */
 export async function createGroupReport(assemblyId, reportData, senderPhone, waMessageId = null) {
+  const insertData = {
+    assembly_id: assemblyId,
+    activity_date: reportData.activity_date,
+    location: reportData.location,
+    area: reportData.area || null,
+    city: reportData.city || null,
+    activity_type: reportData.activity_type,
+    preachers_team: reportData.preachers_team || reportData.reporter_name,
+    message_summary: reportData.message_summary,
+    response_moments: reportData.response_moments || null,
+    saved: reportData.saved ?? reportData.converts ?? 0,
+    healed: reportData.healed ?? reportData.sick_prayed_for ?? 0,
+    reporter_name: reportData.reporter_name,
+    reporter_phone: senderPhone,
+    source: 'group_message',
+    posted_to_group: true,
+  };
+
+  // Include wa_message_id if provided (column may not exist yet — fall back if needed)
+  if (waMessageId) insertData.wa_message_id = waMessageId;
+
   const { data, error } = await supabase
     .from('reports')
-    .insert([{
-      assembly_id: assemblyId,
-      activity_date: reportData.activity_date,
-      location: reportData.location,
-      area: reportData.area || null,
-      city: reportData.city || null,
-      activity_type: reportData.activity_type,
-      preachers_team: reportData.preachers_team || reportData.reporter_name,
-      message_summary: reportData.message_summary,
-      response_moments: reportData.response_moments || null,
-      saved: reportData.saved ?? reportData.converts ?? 0,
-      healed: reportData.healed ?? reportData.sick_prayed_for ?? 0,
-      reporter_name: reportData.reporter_name,
-      reporter_phone: senderPhone,
-      source: 'group_message',
-      posted_to_group: true,
-      wa_message_id: waMessageId
-    }])
+    .insert([insertData])
     .select();
 
-  if (error) throw error;
+  if (error) {
+    // If wa_message_id column doesn't exist yet, retry without it
+    if (waMessageId && (error.code === '42703' || error.message?.includes('wa_message_id'))) {
+      logger.warn('[DB] wa_message_id column not found, saving report without it. Add the column to enable deletion tracking.');
+      delete insertData.wa_message_id;
+      const { data: data2, error: error2 } = await supabase
+        .from('reports')
+        .insert([insertData])
+        .select();
+      if (error2) throw error2;
+      return { lastInsertRowid: data2[0].id };
+    }
+    throw error;
+  }
+
   return { lastInsertRowid: data[0].id };
 }
 
