@@ -58,7 +58,7 @@ export async function handleGroupMessage(sock, msg, messageText) {
         if (!assembly) {
             logger.warn(`[GROUP] No assembly found for group: ${groupJid}`);
             await sock.sendMessage(groupJid, {
-                text: '❌ This group is not configured as an assembly group. Please contact the administrator.'
+                text: '❌ This group is not configured as a cluster group. Please contact the administrator.'
             });
             return;
         }
@@ -83,7 +83,7 @@ export async function handleGroupMessage(sock, msg, messageText) {
             `🏘️ Area: ${parsedReport.area || 'N/A'}\n` +
             `✝️ Saved: ${parsedReport.saved}\n` +
             `🙏 Healed: ${parsedReport.healed}\n` +
-            `🏛️ Assembly: ${assembly.name}\n\n` +
+            `🏛️ Cluster: ${assembly.name}\n\n` +
             `Thank you for your faithfulness! 🙏`;
 
         await sock.sendMessage(groupJid, {

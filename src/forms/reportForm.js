@@ -146,7 +146,7 @@ async function sendAssemblyPrompt(sock, userJid) {
 
     if (assemblies.length === 0) {
         await sock.sendMessage(userJid, {
-            text: '❌ No assemblies configured. Please contact the administrator.'
+            text: '❌ No clusters configured. Please contact the administrator.'
         });
         await clearUserFormState(userJid);
         return;
@@ -159,7 +159,7 @@ async function sendAssemblyPrompt(sock, userJid) {
         message += `▪️ ${index + 1}. ${assembly.name}\n`;
     });
 
-    message += '\n🔢 Reply with the number of your assembly';
+    message += '\n🔢 Reply with the number of your cluster';
     message += '\n\n_Type "cancel" anytime to cancel._';
 
     await sock.sendMessage(userJid, { text: message });
@@ -179,7 +179,7 @@ async function processAssemblyStep(sock, userJid, message, formData) {
 
     const selectedAssembly = assemblies[validation.value - 1];
     if (!selectedAssembly) {
-        await sock.sendMessage(userJid, { text: '❌ Invalid assembly selection.' });
+        await sock.sendMessage(userJid, { text: '❌ Invalid cluster selection.' });
         return;
     }
 
@@ -549,7 +549,7 @@ async function processConfirmationStep(sock, userJid, message, formData) {
 
         // Send success message
         await sock.sendMessage(userJid, {
-            text: '✅ Report submitted successfully!\n\nYour evangelism report has been saved and will be posted to your assembly group.\n\nThank you for your faithfulness! 🙏'
+            text: '✅ Report submitted successfully!\n\nYour evangelism report has been saved and will be posted to your cluster group.\n\nThank you for your faithfulness! 🙏'
         });
 
         // Post to group
