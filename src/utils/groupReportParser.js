@@ -49,7 +49,7 @@ const FIELD_ALIASES = [
     },
     {
         field: 'activity_type',
-        aliases: ['Type of Activity']
+        aliases: ['Activity']
     },
     {
         field: 'preachers_team',
@@ -204,7 +204,7 @@ export function validateParsedReport(report) {
         { field: 'location', name: 'Location' },
         { field: 'area', name: 'Area' },
         { field: 'city', name: 'City' },
-        { field: 'activity_type', name: 'Type of Activity' },
+        { field: 'activity_type', name: 'Activity' },
         { field: 'preachers_team', name: 'Team' },
         { field: 'message_summary', name: 'Message' },
         { field: 'response_moments', name: 'Response' }
