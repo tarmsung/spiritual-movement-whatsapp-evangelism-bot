@@ -3,7 +3,7 @@ import cron from 'node-cron';
 import logger from '../utils/logger.js';
 import config from '../config/config.js';
 import { getAllAssemblies, getEventsInDays } from '../database/db.js';
-import { getPreviousMonthRange, getPreviousDayRange, formatNumber, formatCalendarDate } from '../utils/helpers.js';
+import { getPreviousMonthRange, getPreviousDayRange, formatNumber, formatCalendarDate, sleep } from '../utils/helpers.js';
 import { generateAssemblyReports, generateAssemblyReport } from './aiReportGenerator.js';
 import { generatePDFReport } from './pdfGenerator.js';
 import { getSocket } from '../bot/connection.js';
@@ -220,6 +220,9 @@ export async function sendEventReminders() {
                 try {
                     await sock.sendMessage(calendarGroupJid, { text: msg });
                     logger.info(`[SCHEDULER] ${daysOut}-day reminder sent for: ${event.name}`);
+
+                    // Wait 1 minute before sending the next one
+                    await sleep(60000);
                 } catch (err) {
                     logger.error(`[SCHEDULER] Failed to send ${daysOut}-day reminder:`, err);
                 }
