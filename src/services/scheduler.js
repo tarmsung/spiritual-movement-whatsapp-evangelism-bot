@@ -25,12 +25,18 @@ export function startScheduler() {
     scheduledTask = cron.schedule(config.reportSchedule, async () => {
         logger.info('Monthly report generation triggered by scheduler');
         await generateAndDistributeMonthlyReport();
+    }, {
+        scheduled: true,
+        timezone: 'Africa/Harare'
     });
 
-    // Daily event reminder — runs every morning at 7:00 AM
+    // Daily event reminder — runs every morning at 7:00 AM (Harare Time)
     cron.schedule('0 7 * * *', async () => {
         logger.info('[SCHEDULER] Running daily event reminder check...');
         await sendEventReminders(false); // false = strictly real events
+    }, {
+        scheduled: true,
+        timezone: 'Africa/Harare'
     });
 
     logger.info('Scheduler started successfully');
