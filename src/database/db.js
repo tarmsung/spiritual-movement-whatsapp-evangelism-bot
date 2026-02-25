@@ -425,4 +425,61 @@ export async function getReportsForAssembly(assemblyId, startDate, endDate) {
   return data;
 }
 
+/**
+ * EVENTS - Calendar Operations
+ */
+
+/**
+ * Get upcoming events from today onwards
+ * @param {number} limit - Max number of events to return (default 10)
+ */
+export async function getUpcomingEvents(limit = 10) {
+  const today = new Date().toISOString().split('T')[0];
+  const { data, error } = await supabase
+    .from('events')
+    .select('*')
+    .gte('event_date', today)
+    .order('event_date', { ascending: true })
+    .limit(limit);
+
+  if (error) throw error;
+  return data;
+}
+
+/**
+ * Get the single next upcoming event
+ */
+export async function getNextEvent() {
+  const today = new Date().toISOString().split('T')[0];
+  const { data, error } = await supabase
+    .from('events')
+    .select('*')
+    .gte('event_date', today)
+    .order('event_date', { ascending: true })
+    .limit(1)
+    .single();
+
+  if (error && error.code !== 'PGRST116') throw error;
+  return data || null;
+}
+
+/**
+ * Get events happening exactly N days from today (for reminders)
+ * @param {number} daysFromNow - Number of days from today
+ */
+export async function getEventsInDays(daysFromNow) {
+  const target = new Date();
+  target.setDate(target.getDate() + daysFromNow);
+  const targetStr = target.toISOString().split('T')[0];
+
+  const { data, error } = await supabase
+    .from('events')
+    .select('*')
+    .eq('event_date', targetStr);
+
+  if (error) throw error;
+  return data;
+}
+
 export default supabase;
+

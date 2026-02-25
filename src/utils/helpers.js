@@ -141,3 +141,22 @@ export function getPreviousDayRange() {
         end: dateStr
     };
 }
+
+/**
+ * Format a YYYY-MM-DD date as a human-readable calendar date
+ * e.g. "2026-02-28" → "Saturday, 28 February 2026"
+ * @param {string} dateStr - YYYY-MM-DD format
+ * @returns {string}
+ */
+export function formatCalendarDate(dateStr) {
+    // Parse as UTC to avoid timezone shifts
+    const [year, month, day] = dateStr.split('-').map(Number);
+    const d = new Date(Date.UTC(year, month - 1, day));
+    return d.toLocaleDateString('en-GB', {
+        weekday: 'long',
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+        timeZone: 'UTC'
+    });
+}

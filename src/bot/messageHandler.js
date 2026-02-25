@@ -3,6 +3,8 @@ import logger from '../utils/logger.js';
 import { startReportForm, processFormResponse, hasActiveForm } from '../forms/reportForm.js';
 import { handleGroupMessage } from './groupMessageHandler.js';
 import { hasActiveTestReport, startTestReport, processTestReportResponse } from './testReportHandler.js';
+import { getUpcomingEvents, getNextEvent } from '../database/db.js';
+import { formatCalendarDate } from '../utils/helpers.js';
 
 /**
  * Main message handler
@@ -50,6 +52,18 @@ export async function handleMessage(sock, msg, messageText) {
         return;
     }
 
+    // Events command
+    if (normalizedMessage === '!events' || normalizedMessage === 'events') {
+        await sendUpcomingEvents(sock, userJid);
+        return;
+    }
+
+    // Next event command
+    if (normalizedMessage === '!next' || normalizedMessage === 'next event') {
+        await sendNextEvent(sock, userJid);
+        return;
+    }
+
     // Test report command
     if (normalizedMessage === 'testreport' || normalizedMessage === '!testreport') {
         await startTestReport(sock, userJid);
@@ -70,12 +84,14 @@ export async function handleMessage(sock, msg, messageText) {
 async function sendHelpMessage(sock, userJid) {
     let helpText = `📖 EVANGELISM REPORTER BOT\n\n`;
     helpText += `Welcome to ${config.churchName}'s Evangelism Reporter!\n\n`;
-    helpText += `**COMMANDS:**\n`;
+    helpText += `*COMMANDS:*\n`;
     helpText += `evangelism - Start new evangelism report\n`;
-    helpText += `testreport - Generate a test report for a specific cluster & month\n`;
+    helpText += `!events - View upcoming church events\n`;
+    helpText += `!next - View the next upcoming event\n`;
+    helpText += `testreport - Generate a test report\n`;
     helpText += `!help - Show this help message\n`;
     helpText += `cancel - Cancel current form (during filling)\n\n`;
-    helpText += `**HOW IT WORKS:**\n`;
+    helpText += `*HOW IT WORKS:*\n`;
     helpText += `1. Send "evangelism" to begin\n`;
     helpText += `2. Answer the questions step by step\n`;
     helpText += `3. Review and confirm your report\n`;
@@ -84,4 +100,56 @@ async function sendHelpMessage(sock, userJid) {
     helpText += `God bless your evangelism efforts! 🙏`;
 
     await sock.sendMessage(userJid, { text: helpText });
+}
+
+/**
+ * Send upcoming events list
+ */
+export async function sendUpcomingEvents(sock, jid) {
+    try {
+        const events = await getUpcomingEvents(15);
+        if (!events || events.length === 0) {
+            await sock.sendMessage(jid, { text: '📅 No upcoming events found.' });
+            return;
+        }
+
+        let msg = '📅 *UPCOMING CHURCH EVENTS*\n';
+        msg += '━━━━━━━━━━━━━━━━━━━━━━━━\n\n';
+
+        for (const event of events) {
+            msg += `▪️ *${event.name}*\n`;
+            msg += `   ${event.day_of_week}, ${formatCalendarDate(event.event_date)}\n\n`;
+        }
+
+        msg += '━━━━━━━━━━━━━━━━━━━━━━━━\n';
+        msg += '_God bless your attendance! 🙏_';
+
+        await sock.sendMessage(jid, { text: msg });
+    } catch (error) {
+        await sock.sendMessage(jid, { text: '❌ Could not load events. Please try again later.' });
+    }
+}
+
+/**
+ * Send next single event
+ */
+export async function sendNextEvent(sock, jid) {
+    try {
+        const event = await getNextEvent();
+        if (!event) {
+            await sock.sendMessage(jid, { text: '📅 No upcoming events found.' });
+            return;
+        }
+
+        let msg = '📅 *NEXT UPCOMING EVENT*\n';
+        msg += '━━━━━━━━━━━━━━━━━━━━━━━━\n\n';
+        msg += `*${event.name}*\n`;
+        msg += `📆 ${event.day_of_week}, ${formatCalendarDate(event.event_date)}\n\n`;
+        msg += '━━━━━━━━━━━━━━━━━━━━━━━━\n';
+        msg += '_God bless your attendance! 🙏_';
+
+        await sock.sendMessage(jid, { text: msg });
+    } catch (error) {
+        await sock.sendMessage(jid, { text: '❌ Could not load the next event. Please try again later.' });
+    }
 }

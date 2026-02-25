@@ -2,8 +2,8 @@ import fs from 'fs';
 import cron from 'node-cron';
 import logger from '../utils/logger.js';
 import config from '../config/config.js';
-import { getAllAssemblies } from '../database/db.js';
-import { getPreviousMonthRange, getPreviousDayRange, formatNumber } from '../utils/helpers.js';
+import { getAllAssemblies, getEventsInDays } from '../database/db.js';
+import { getPreviousMonthRange, getPreviousDayRange, formatNumber, formatCalendarDate } from '../utils/helpers.js';
 import { generateAssemblyReports, generateAssemblyReport } from './aiReportGenerator.js';
 import { generatePDFReport } from './pdfGenerator.js';
 import { getSocket } from '../bot/connection.js';
@@ -25,6 +25,12 @@ export function startScheduler() {
     scheduledTask = cron.schedule(config.reportSchedule, async () => {
         logger.info('Monthly report generation triggered by scheduler');
         await generateAndDistributeMonthlyReport();
+    });
+
+    // Daily event reminder — runs every morning at 7:00 AM
+    cron.schedule('0 7 * * *', async () => {
+        logger.info('[SCHEDULER] Running daily event reminder check...');
+        await sendEventReminders();
     });
 
     logger.info('Scheduler started successfully');
@@ -157,6 +163,74 @@ export async function manuallyTriggerReport() {
     logger.info('Manual report generation triggered');
     await generateAndDistributeMonthlyReport();
 }
+
+/**
+ * Check for upcoming events and send reminders at 7, 3, and 1 day(s) before
+ */
+export async function sendEventReminders() {
+    try {
+        const calendarGroupJid = '263774099294-1478431177@g.us';
+
+        const sock = getSocket();
+        if (!sock) {
+            logger.error('[SCHEDULER] WhatsApp not connected - cannot send event reminders');
+            return;
+        }
+
+        // Define reminder intervals with their messages
+        const reminders = [
+            {
+                daysOut: 7,
+                label: (name, date) =>
+                    `📅 *UPCOMING EVENT — 1 WEEK AWAY*\n` +
+                    `━━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+                    `*${name}*\n` +
+                    `📆 ${date}\n\n` +
+                    `Mark your calendars! This event is *7 days away*. 🙏\n` +
+                    `━━━━━━━━━━━━━━━━━━━━━━━━`
+            },
+            {
+                daysOut: 3,
+                label: (name, date) =>
+                    `📅 *UPCOMING EVENT — 3 DAYS TO GO*\n` +
+                    `━━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+                    `*${name}*\n` +
+                    `📆 ${date}\n\n` +
+                    `Only *3 days left!* Make your arrangements. 🙏\n` +
+                    `━━━━━━━━━━━━━━━━━━━━━━━━`
+            },
+            {
+                daysOut: 1,
+                label: (name, date) =>
+                    `📅 *EVENT REMINDER — TOMORROW*\n` +
+                    `━━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+                    `Tomorrow: *${name}*\n` +
+                    `📆 ${date}\n\n` +
+                    `Please make your final arrangements. God bless! 🙏\n` +
+                    `━━━━━━━━━━━━━━━━━━━━━━━━`
+            }
+        ];
+
+        for (const { daysOut, label } of reminders) {
+            const events = await getEventsInDays(daysOut);
+            if (!events || events.length === 0) continue;
+
+            for (const event of events) {
+                const msg = label(event.name, formatCalendarDate(event.event_date));
+                try {
+                    await sock.sendMessage(calendarGroupJid, { text: msg });
+                    logger.info(`[SCHEDULER] ${daysOut}-day reminder sent for: ${event.name}`);
+                } catch (err) {
+                    logger.error(`[SCHEDULER] Failed to send ${daysOut}-day reminder:`, err);
+                }
+            }
+        }
+
+    } catch (error) {
+        logger.error('[SCHEDULER] Error sending event reminders:', error);
+    }
+}
+
 
 /**
  * Generate test report for a single user (sends reports for all assemblies)

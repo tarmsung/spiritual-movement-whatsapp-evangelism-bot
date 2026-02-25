@@ -1,5 +1,6 @@
 import { isEvangelismReport, parseReport, validateParsedReport } from '../utils/groupReportParser.js';
 import { getAssemblyByGroupJid, createGroupReport } from '../database/db.js';
+import { sendUpcomingEvents, sendNextEvent } from './messageHandler.js';
 import logger from '../utils/logger.js';
 
 /**
@@ -19,10 +20,23 @@ export async function handleGroupMessage(sock, msg, messageText) {
 
     logger.info(`[GROUP] Message received in group: ${groupJid} from: ${senderJid}`);
 
+    const normalizedText = messageText.trim().toLowerCase();
+
+    // Handle calendar commands from group
+    if (normalizedText === '!events' || normalizedText === 'events') {
+        await sendUpcomingEvents(sock, groupJid);
+        return;
+    }
+
+    if (normalizedText === '!next' || normalizedText === 'next event') {
+        await sendNextEvent(sock, groupJid);
+        return;
+    }
+
     // Check if this is an evangelism report
     if (!isEvangelismReport(messageText)) {
         logger.info(`[GROUP] Not an evangelism report, ignoring.`);
-        return; // Not a report, ignore
+        return;
     }
 
     logger.info(`[GROUP] Detected evangelism report in group: ${groupJid}`);
