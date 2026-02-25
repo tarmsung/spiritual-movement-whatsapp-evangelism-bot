@@ -71,10 +71,7 @@ const FIELD_ALIASES = [
         field: 'healed',
         aliases: ['Healed', 'Healing', 'Sick prayed for', 'Sick Prayed For', 'Prayed for', 'Sick']
     },
-    {
-        field: 'reporter_name',
-        aliases: ['Reporter', 'Reported by', 'Submitted by', 'Name']
-    }
+    // reporter_name removed — reporter is identified by WhatsApp sender phone number
 ];
 
 /**
@@ -148,10 +145,7 @@ export function parseReport(messageText) {
         report[current.field] = value;
     }
 
-    // Ensure preachers_team has a fallback (DB requires NOT NULL)
-    if (!report.preachers_team || (typeof report.preachers_team === 'string' && report.preachers_team.trim() === '')) {
-        report.preachers_team = report.reporter_name || 'Not specified';
-    }
+    // Do NOT silently fill in preachers_team — it is required and must be provided by the user.
 
     return report;
 }
@@ -207,8 +201,12 @@ export function validateParsedReport(report) {
     const requiredFields = [
         { field: 'activity_date', name: 'Date' },
         { field: 'location', name: 'Location' },
+        { field: 'area', name: 'Area' },
+        { field: 'city', name: 'City / Town' },
         { field: 'activity_type', name: 'Type of Activity' },
-        { field: 'message_summary', name: 'Message Summary' }
+        { field: 'preachers_team', name: 'Team / Preachers' },
+        { field: 'message_summary', name: 'Message Summary' },
+        { field: 'response_moments', name: 'Notable Moments' }
     ];
 
     for (const { field, name } of requiredFields) {
@@ -224,12 +222,16 @@ export function validateParsedReport(report) {
         errors.push('Invalid date format. Use DD/MM/YYYY (e.g. 10/02/2026)');
     }
 
-    // Validate numbers
-    if (report.saved !== undefined && typeof report.saved !== 'number') {
+    // Saved and Healed are now required — must be present and must be a number
+    if (report.saved === undefined || report.saved === null) {
+        errors.push('Missing required field: Saved (use 0 if none)');
+    } else if (typeof report.saved !== 'number') {
         errors.push('Saved must be a number');
     }
 
-    if (report.healed !== undefined && typeof report.healed !== 'number') {
+    if (report.healed === undefined || report.healed === null) {
+        errors.push('Missing required field: Healed (use 0 if none)');
+    } else if (typeof report.healed !== 'number') {
         errors.push('Healed must be a number');
     }
 
