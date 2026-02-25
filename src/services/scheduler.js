@@ -27,9 +27,9 @@ export function startScheduler() {
         await generateAndDistributeMonthlyReport();
     });
 
-    // TEMPORARY FOR TESTING: Runs every minute
-    cron.schedule('* * * * *', async () => {
-        logger.info('[SCHEDULER] Running TEST event reminder check...');
+    // Daily event reminder — runs every morning at 7:00 AM
+    cron.schedule('0 7 * * *', async () => {
+        logger.info('[SCHEDULER] Running daily event reminder check...');
         await sendEventReminders();
     });
 

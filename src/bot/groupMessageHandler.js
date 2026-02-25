@@ -1,6 +1,7 @@
 import { isEvangelismReport, parseReport, validateParsedReport } from '../utils/groupReportParser.js';
 import { getAssemblyByGroupJid, createGroupReport } from '../database/db.js';
 import { sendUpcomingEvents, sendNextEvent } from './messageHandler.js';
+import { sendEventReminders } from '../services/scheduler.js';
 import logger from '../utils/logger.js';
 
 /**
@@ -33,6 +34,13 @@ export async function handleGroupMessage(sock, msg, messageText) {
 
     if (normalizedText === '!next' || normalizedText === 'next event') {
         await sendNextEvent(sock, groupJid);
+        return;
+    }
+
+    // Run test reminder command
+    if (normalizedText === 'runtest' || normalizedText === '!runtest') {
+        await sock.sendMessage(groupJid, { text: '⚙️ Running event reminders test (1-minute delayed batch)...' });
+        await sendEventReminders();
         return;
     }
 
