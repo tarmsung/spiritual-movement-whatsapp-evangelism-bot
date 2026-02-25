@@ -37,39 +37,39 @@ const FIELD_ALIASES = [
     },
     {
         field: 'location',
-        aliases: ['Location', 'Place', 'Venue']
+        aliases: ['Location']
     },
     {
         field: 'area',
-        aliases: ['Area', 'Neighbourhood', 'Neighborhood']
+        aliases: ['Area']
     },
     {
         field: 'city',
-        aliases: ['City', 'Town']
+        aliases: ['City']
     },
     {
         field: 'activity_type',
-        aliases: ['Type of Activity', 'Activity Type', 'Type of Evangelism', 'Activity', 'Type']
+        aliases: ['Type of Activity']
     },
     {
         field: 'preachers_team',
-        aliases: ['Preacher(s) Team', 'Preachers Team', 'Preacher', 'Preachers', 'Team', 'Minister', 'Ministers']
+        aliases: ['Team']
     },
     {
         field: 'message_summary',
-        aliases: ['Message Summary', 'Message summary', 'Summary', 'Message']
+        aliases: ['Message Summary']
     },
     {
         field: 'response_moments',
-        aliases: ['Response', 'Notable Moments', 'Moments', 'Highlights']
+        aliases: ['Response']
     },
     {
         field: 'saved',
-        aliases: ['Saved', 'Converts', 'Convert', 'Souls Won', 'Souls']
+        aliases: ['Saved']
     },
     {
         field: 'healed',
-        aliases: ['Healed', 'Healing', 'Sick prayed for', 'Sick Prayed For', 'Prayed for', 'Sick']
+        aliases: ['Healed']
     },
     // reporter_name removed — reporter is identified by WhatsApp sender phone number
 ];
