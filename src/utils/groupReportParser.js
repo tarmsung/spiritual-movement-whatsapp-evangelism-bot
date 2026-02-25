@@ -205,7 +205,7 @@ export function validateParsedReport(report) {
         { field: 'area', name: 'Area' },
         { field: 'city', name: 'City / Town' },
         { field: 'activity_type', name: 'Type of Activity' },
-        { field: 'preachers_team', name: 'Team / Preachers' },
+        { field: 'preachers_team', name: 'Team' },
         { field: 'message_summary', name: 'Message Summary' },
         { field: 'response_moments', name: 'Response' }
     ];
