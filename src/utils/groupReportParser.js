@@ -61,7 +61,7 @@ const FIELD_ALIASES = [
     },
     {
         field: 'response_moments',
-        aliases: ['Response/Notable Moments', 'Notable Moments', 'Notable moments', 'Response', 'Moments', 'Highlights']
+        aliases: ['Response', 'Notable Moments', 'Moments', 'Highlights']
     },
     {
         field: 'saved',
