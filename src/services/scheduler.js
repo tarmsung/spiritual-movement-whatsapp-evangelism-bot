@@ -30,7 +30,7 @@ export function startScheduler() {
     // Daily event reminder — runs every morning at 7:00 AM
     cron.schedule('0 7 * * *', async () => {
         logger.info('[SCHEDULER] Running daily event reminder check...');
-        await sendEventReminders();
+        await sendEventReminders(false); // false = strictly real events
     });
 
     logger.info('Scheduler started successfully');
@@ -166,8 +166,9 @@ export async function manuallyTriggerReport() {
 
 /**
  * Check for upcoming events and send reminders at 7, 3, and 1 day(s) before
+ * @param {boolean} isTest - If true, only process dummy test events. If false, process real events.
  */
-export async function sendEventReminders() {
+export async function sendEventReminders(isTest = false) {
     try {
         const calendarGroupJid = '263774099294-1478431177@g.us';
 
@@ -212,7 +213,7 @@ export async function sendEventReminders() {
         ];
 
         for (const { daysOut, label } of reminders) {
-            const events = await getEventsInDays(daysOut);
+            const events = await getEventsInDays(daysOut, isTest);
             if (!events || events.length === 0) continue;
 
             for (const event of events) {

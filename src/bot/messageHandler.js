@@ -65,7 +65,7 @@ export async function handleMessage(sock, msg, messageText) {
     // Run test reminder command
     if (normalizedMessage === 'runtest' || normalizedMessage === '!runtest') {
         await sock.sendMessage(userJid, { text: '⚙️ Running event reminders test (1-minute delayed batch)...' });
-        await sendEventReminders();
+        await sendEventReminders(true); // true = strictly test events
         return;
     }
 

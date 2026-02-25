@@ -501,16 +501,27 @@ export async function getNextEvent() {
 /**
  * Get events happening exactly N days from today (for reminders)
  * @param {number} daysFromNow - Number of days from today
+ * @param {boolean} isTest - If true, only gets events starting with "TEST EVENT". If false, excludes them.
  */
-export async function getEventsInDays(daysFromNow) {
+export async function getEventsInDays(daysFromNow, isTest = false) {
   const target = new Date();
   target.setDate(target.getDate() + daysFromNow);
   const targetStr = target.toISOString().split('T')[0];
 
-  const { data, error } = await supabase
+  let query = supabase
     .from('events')
     .select('*')
     .eq('event_date', targetStr);
+
+  if (isTest) {
+    // Only get test events
+    query = query.like('name', 'TEST EVENT%');
+  } else {
+    // Exclude test events
+    query = query.not('name', 'like', 'TEST EVENT%');
+  }
+
+  const { data, error } = await query;
 
   if (error) throw error;
   return data;

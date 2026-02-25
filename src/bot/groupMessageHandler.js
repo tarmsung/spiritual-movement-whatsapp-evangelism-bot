@@ -40,7 +40,7 @@ export async function handleGroupMessage(sock, msg, messageText) {
     // Run test reminder command
     if (normalizedText === 'runtest' || normalizedText === '!runtest') {
         await sock.sendMessage(groupJid, { text: '⚙️ Running event reminders test (1-minute delayed batch)...' });
-        await sendEventReminders();
+        await sendEventReminders(true); // true = strictly test events
         return;
     }
 
