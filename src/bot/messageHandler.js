@@ -134,16 +134,16 @@ export async function sendUpcomingEvents(sock, jid, monthArg = null) {
 
         const headerTitle = monthArg ? `UPCOMING CHURCH EVENTS — ${monthArg.toUpperCase()}` : 'UPCOMING CHURCH EVENTS';
 
-        let msg = `📅 *${headerTitle}*\n`;
-        msg += '━━━━━━━━━━━━━━━━━━━━━━━━\n\n';
+        let msg = `🗓️ *${headerTitle}*\n`;
+        msg += '────────────────────\n\n';
 
         for (const event of events) {
-            msg += `▪️ *${event.name}*\n`;
-            msg += `   ${formatCalendarDate(event.event_date)}\n\n`;
+            msg += `**${event.name}**\n`;
+            msg += `🔸 ${formatCalendarDate(event.event_date)}\n\n`;
         }
 
-        msg += '━━━━━━━━━━━━━━━━━━━━━━━━\n';
-        msg += '_God bless your attendance! 🙏_';
+        msg += '────────────────────\n';
+        msg += '_God bless your attendance!_ 🙏';
 
         await sock.sendMessage(jid, { text: msg });
     } catch (error) {
@@ -162,12 +162,12 @@ export async function sendNextEvent(sock, jid) {
             return;
         }
 
-        let msg = '📅 *NEXT UPCOMING EVENT*\n';
-        msg += '━━━━━━━━━━━━━━━━━━━━━━━━\n\n';
-        msg += `*${event.name}*\n`;
-        msg += `📆 ${formatCalendarDate(event.event_date)}\n\n`;
-        msg += '━━━━━━━━━━━━━━━━━━━━━━━━\n';
-        msg += '_God bless your attendance! 🙏_';
+        let msg = '🗓️ *NEXT UPCOMING EVENT*\n';
+        msg += '────────────────────\n\n';
+        msg += `**${event.name}**\n`;
+        msg += `🔸 ${formatCalendarDate(event.event_date)}\n\n`;
+        msg += '────────────────────\n';
+        msg += '_God bless your attendance!_ 🙏';
 
         await sock.sendMessage(jid, { text: msg });
     } catch (error) {

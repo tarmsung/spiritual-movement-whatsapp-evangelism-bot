@@ -183,32 +183,35 @@ export async function sendEventReminders(isTest = false) {
             {
                 daysOut: 7,
                 label: (name, date) =>
-                    `📅 *UPCOMING EVENT — 1 WEEK AWAY*\n` +
-                    `━━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
-                    `*${name}*\n` +
-                    `📆 ${date}\n\n` +
-                    `Mark your calendars! This event is *7 days away*. 🙏\n` +
-                    `━━━━━━━━━━━━━━━━━━━━━━━━`
+                    `⏳ *1 WEEK AWAY*\n` +
+                    `🗓️ *UPCOMING CHURCH EVENT*\n` +
+                    `────────────────────\n` +
+                    `**${name}**\n` +
+                    `🔸 WHEN: ${date}\n\n` +
+                    `_Mark your calendars! Preparation time is now._ 🙏\n` +
+                    `────────────────────`
             },
             {
                 daysOut: 3,
                 label: (name, date) =>
-                    `📅 *UPCOMING EVENT — 3 DAYS TO GO*\n` +
-                    `━━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
-                    `*${name}*\n` +
-                    `📆 ${date}\n\n` +
-                    `Only *3 days left!* Make your arrangements. 🙏\n` +
-                    `━━━━━━━━━━━━━━━━━━━━━━━━`
+                    `⏳ *3 DAYS TO GO*\n` +
+                    `🗓️ *UPCOMING CHURCH EVENT*\n` +
+                    `────────────────────\n` +
+                    `**${name}**\n` +
+                    `🔸 WHEN: ${date}\n\n` +
+                    `_Only 3 days left! Kindly make your arrangements._ 🙏\n` +
+                    `────────────────────`
             },
             {
                 daysOut: 1,
                 label: (name, date) =>
-                    `📅 *EVENT REMINDER — TOMORROW*\n` +
-                    `━━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
-                    `Tomorrow: *${name}*\n` +
-                    `📆 ${date}\n\n` +
-                    `Please make your final arrangements. God bless! 🙏\n` +
-                    `━━━━━━━━━━━━━━━━━━━━━━━━`
+                    `🔔 *EVENT TOMORROW*\n` +
+                    `🗓️ *CHURCH EVENT REMINDER*\n` +
+                    `────────────────────\n` +
+                    `**${name}**\n` +
+                    `🔸 WHEN: ${date}\n\n` +
+                    `_Please make your final arrangements. God bless!_ 🙏\n` +
+                    `────────────────────`
             }
         ];
 
