@@ -134,7 +134,8 @@ export function parseReport(messageText) {
         // Convert number fields
         if (current.field === 'saved' || current.field === 'healed') {
             const num = parseInt(value);
-            value = isNaN(num) ? 0 : num;
+            // Use null (not 0) for blank/non-numeric input so the validator rejects it as missing
+            value = isNaN(num) ? null : num;
         }
 
         // Convert date format
