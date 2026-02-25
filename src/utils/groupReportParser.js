@@ -57,7 +57,7 @@ const FIELD_ALIASES = [
     },
     {
         field: 'message_summary',
-        aliases: ['Message Summary']
+        aliases: ['Message']
     },
     {
         field: 'response_moments',
@@ -206,7 +206,7 @@ export function validateParsedReport(report) {
         { field: 'city', name: 'City' },
         { field: 'activity_type', name: 'Type of Activity' },
         { field: 'preachers_team', name: 'Team' },
-        { field: 'message_summary', name: 'Message Summary' },
+        { field: 'message_summary', name: 'Message' },
         { field: 'response_moments', name: 'Response' }
     ];
 
