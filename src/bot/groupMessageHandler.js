@@ -23,8 +23,11 @@ export async function handleGroupMessage(sock, msg, messageText) {
     const normalizedText = messageText.trim().toLowerCase();
 
     // Handle calendar commands from group
-    if (normalizedText === '!events' || normalizedText === 'events') {
-        await sendUpcomingEvents(sock, groupJid);
+    if (normalizedText.startsWith('!events') || normalizedText.startsWith('events')) {
+        // Extract month argument if present
+        const parts = normalizedText.split(' ');
+        const monthArg = parts.length > 1 ? parts[1] : null;
+        await sendUpcomingEvents(sock, groupJid, monthArg);
         return;
     }
 

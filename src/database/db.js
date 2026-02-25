@@ -430,17 +430,52 @@ export async function getReportsForAssembly(assemblyId, startDate, endDate) {
  */
 
 /**
- * Get upcoming events from today onwards
+ * Get upcoming events from today onwards, optionally filtered by month
  * @param {number} limit - Max number of events to return (default 10)
+ * @param {string} [monthName] - Optional month name (e.g. 'march', 'mar')
  */
-export async function getUpcomingEvents(limit = 10) {
-  const today = new Date().toISOString().split('T')[0];
-  const { data, error } = await supabase
+export async function getUpcomingEvents(limit = 10, monthName = null) {
+  let query = supabase
     .from('events')
     .select('*')
-    .gte('event_date', today)
-    .order('event_date', { ascending: true })
-    .limit(limit);
+    .order('event_date', { ascending: true });
+
+  if (monthName) {
+    // If a month is requested, find the exact month number
+    const months = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december'];
+    const shortMonths = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+
+    const monthLower = monthName.toLowerCase();
+    let monthIndex = months.findIndex(m => m.startsWith(monthLower));
+
+    if (monthIndex === -1) {
+      monthIndex = shortMonths.findIndex(m => m.startsWith(monthLower));
+    }
+
+    if (monthIndex !== -1) {
+      // We found a valid month. Filter events for that month (in the current year)
+      const year = new Date().getFullYear();
+      const monthNumStr = String(monthIndex + 1).padStart(2, '0');
+
+      // Start and end of the requested month
+      const startOfMonth = `${year}-${monthNumStr}-01`;
+
+      const endDate = new Date(year, monthIndex + 1, 0);
+      const endOfMonth = endDate.toISOString().split('T')[0];
+
+      query = query.gte('event_date', startOfMonth).lte('event_date', endOfMonth);
+    } else {
+      // Fallback to "upcoming from today" if month is invalid
+      const today = new Date().toISOString().split('T')[0];
+      query = query.gte('event_date', today).limit(limit);
+    }
+  } else {
+    // No month specified, just get upcoming from today
+    const today = new Date().toISOString().split('T')[0];
+    query = query.gte('event_date', today).limit(limit);
+  }
+
+  const { data, error } = await query;
 
   if (error) throw error;
   return data;

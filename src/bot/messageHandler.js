@@ -52,9 +52,12 @@ export async function handleMessage(sock, msg, messageText) {
         return;
     }
 
-    // Events command
-    if (normalizedMessage === '!events' || normalizedMessage === 'events') {
-        await sendUpcomingEvents(sock, userJid);
+    // Events command (can include a month, e.g. "!events march")
+    if (normalizedMessage.startsWith('!events') || normalizedMessage.startsWith('events')) {
+        // Extract month argument if present
+        const parts = normalizedMessage.split(' ');
+        const monthArg = parts.length > 1 ? parts[1] : null;
+        await sendUpcomingEvents(sock, userJid, monthArg);
         return;
     }
 
@@ -103,22 +106,32 @@ async function sendHelpMessage(sock, userJid) {
 }
 
 /**
- * Send upcoming events list
+ * Send upcoming events list for a specific month
  */
-export async function sendUpcomingEvents(sock, jid) {
+export async function sendUpcomingEvents(sock, jid, monthArg = null) {
     try {
-        const events = await getUpcomingEvents(15);
-        if (!events || events.length === 0) {
-            await sock.sendMessage(jid, { text: '📅 No upcoming events found.' });
+        if (!monthArg) {
+            await sock.sendMessage(jid, {
+                text: '📅 Please specify a month to view events.\n\n*Example:* `!events March` or `!events 3`'
+            });
             return;
         }
 
-        let msg = '📅 *UPCOMING CHURCH EVENTS*\n';
+        const events = await getUpcomingEvents(15, monthArg);
+        if (!events || events.length === 0) {
+            const timeFrame = monthArg ? `in ${monthArg.toUpperCase()}` : 'upcoming';
+            await sock.sendMessage(jid, { text: `📅 No ${timeFrame} events found.` });
+            return;
+        }
+
+        const headerTitle = monthArg ? `UPCOMING CHURCH EVENTS — ${monthArg.toUpperCase()}` : 'UPCOMING CHURCH EVENTS';
+
+        let msg = `📅 *${headerTitle}*\n`;
         msg += '━━━━━━━━━━━━━━━━━━━━━━━━\n\n';
 
         for (const event of events) {
             msg += `▪️ *${event.name}*\n`;
-            msg += `   ${event.day_of_week}, ${formatCalendarDate(event.event_date)}\n\n`;
+            msg += `   ${formatCalendarDate(event.event_date)}\n\n`;
         }
 
         msg += '━━━━━━━━━━━━━━━━━━━━━━━━\n';
@@ -144,7 +157,7 @@ export async function sendNextEvent(sock, jid) {
         let msg = '📅 *NEXT UPCOMING EVENT*\n';
         msg += '━━━━━━━━━━━━━━━━━━━━━━━━\n\n';
         msg += `*${event.name}*\n`;
-        msg += `📆 ${event.day_of_week}, ${formatCalendarDate(event.event_date)}\n\n`;
+        msg += `📆 ${formatCalendarDate(event.event_date)}\n\n`;
         msg += '━━━━━━━━━━━━━━━━━━━━━━━━\n';
         msg += '_God bless your attendance! 🙏_';
 
