@@ -203,7 +203,7 @@ export function validateParsedReport(report) {
         { field: 'activity_date', name: 'Date' },
         { field: 'location', name: 'Location' },
         { field: 'area', name: 'Area' },
-        { field: 'city', name: 'City / Town' },
+        { field: 'city', name: 'City' },
         { field: 'activity_type', name: 'Type of Activity' },
         { field: 'preachers_team', name: 'Team' },
         { field: 'message_summary', name: 'Message Summary' },
