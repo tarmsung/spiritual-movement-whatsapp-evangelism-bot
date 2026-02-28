@@ -3,7 +3,7 @@ import cron from 'node-cron';
 import logger from '../utils/logger.js';
 import config from '../config/config.js';
 import { getAllAssemblies, getEventsInDays } from '../database/db.js';
-import { getPreviousMonthRange, getPreviousDayRange, formatNumber, formatCalendarDate, sleep } from '../utils/helpers.js';
+import { getPreviousMonthRange, formatNumber, formatCalendarDate, sleep } from '../utils/helpers.js';
 import { generateAssemblyReports, generateAssemblyReport } from './aiReportGenerator.js';
 import { generatePDFReport } from './pdfGenerator.js';
 import { getSocket } from '../bot/connection.js';
@@ -172,9 +172,8 @@ export async function manuallyTriggerReport() {
 
 /**
  * Check for upcoming events and send reminders at 7, 3, and 1 day(s) before
- * @param {boolean} isTest - If true, only process dummy test events. If false, process real events.
  */
-export async function sendEventReminders(isTest = false) {
+export async function sendEventReminders() {
     try {
         const calendarGroupJid = '263772635811-1585590002@g.us';
 
@@ -222,7 +221,7 @@ export async function sendEventReminders(isTest = false) {
         ];
 
         for (const { daysOut, label } of reminders) {
-            const events = await getEventsInDays(daysOut, isTest);
+            const events = await getEventsInDays(daysOut);
             if (!events || events.length === 0) continue;
 
             for (const event of events) {
@@ -244,54 +243,3 @@ export async function sendEventReminders(isTest = false) {
     }
 }
 
-
-/**
- * Generate test report for a single user (sends reports for all assemblies)
- * @param {Object} sock - WhatsApp socket
- * @param {string} recipientJid - Recipient JID
- */
-export async function generateTestReport(sock, recipientJid) {
-    try {
-        logger.info(`Generating test report for ${recipientJid}...`);
-        await sock.sendMessage(recipientJid, { text: 'Generating assembly reports... Please wait.' });
-
-        // Get previous day date range (yesterday)
-        const { start, end } = getPreviousDayRange();
-
-        // Generate reports for all assemblies
-        const assemblyReports = await generateAssemblyReports(start, end);
-
-        if (assemblyReports.length === 0) {
-            await sock.sendMessage(recipientJid, { text: 'No evangelism reports found for the period.' });
-            return;
-        }
-
-        // Send summary and PDFs for each assembly
-        for (const report of assemblyReports) {
-            const summaryMessage = formatAssemblySummaryMessage(report);
-            await sock.sendMessage(recipientJid, { text: summaryMessage });
-
-            // Generate and send PDF
-            const pdfPath = await generatePDFReport(report);
-            const fileBuffer = fs.readFileSync(pdfPath);
-            const fileName = `Report_${report.assemblyName.replace(/\s+/g, '_')}_${start}.pdf`;
-
-            await sock.sendMessage(recipientJid, {
-                document: fileBuffer,
-                mimetype: 'application/pdf',
-                fileName: fileName,
-                caption: `📄 ${report.assemblyName} - Daily Report (${start})`
-            });
-        }
-
-        await sock.sendMessage(recipientJid, {
-            text: `✅ Generated ${assemblyReports.length} assembly report(s).`
-        });
-
-        logger.info(`Test reports sent to ${recipientJid}`);
-
-    } catch (error) {
-        logger.error(`Error generating test report for ${recipientJid}:`, error);
-        await sock.sendMessage(recipientJid, { text: 'Error generating test report. Check logs.' });
-    }
-}
