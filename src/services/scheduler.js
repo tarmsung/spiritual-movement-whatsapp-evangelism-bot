@@ -176,7 +176,7 @@ export async function manuallyTriggerReport() {
  */
 export async function sendEventReminders(isTest = false) {
     try {
-        const calendarGroupJid = '263774099294-1478431177@g.us';
+        const calendarGroupJid = '263772635811-1585590002@g.us';
 
         const sock = getSocket();
         if (!sock) {
