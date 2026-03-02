@@ -171,7 +171,7 @@ export async function manuallyTriggerReport() {
 }
 
 /**
- * Check for upcoming events and send reminders at 7, 3, and 1 day(s) before
+ * Check for upcoming events and send reminders at 5 and 1 day(s) before
  */
 export async function sendEventReminders() {
     try {
@@ -186,25 +186,14 @@ export async function sendEventReminders() {
         // Define reminder intervals with their messages
         const reminders = [
             {
-                daysOut: 7,
+                daysOut: 5,
                 label: (name, date) =>
-                    `⏳ *1 WEEK AWAY*\n` +
+                    `⏳ *5 DAYS AWAY*\n` +
                     `🗓️ *UPCOMING CHURCH EVENT*\n` +
                     `────────────────────\n` +
                     `**${name}**\n` +
                     `🔸 WHEN: ${date}\n\n` +
                     `_Mark your calendars! Preparation time is now._ 🙏\n` +
-                    `────────────────────`
-            },
-            {
-                daysOut: 3,
-                label: (name, date) =>
-                    `⏳ *3 DAYS TO GO*\n` +
-                    `🗓️ *UPCOMING CHURCH EVENT*\n` +
-                    `────────────────────\n` +
-                    `**${name}**\n` +
-                    `🔸 WHEN: ${date}\n\n` +
-                    `_Only 3 days left! Kindly make your arrangements._ 🙏\n` +
                     `────────────────────`
             },
             {
