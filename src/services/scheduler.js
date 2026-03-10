@@ -3,7 +3,7 @@ import cron from 'node-cron';
 import logger from '../utils/logger.js';
 import config from '../config/config.js';
 import { getAllAssemblies, getEventsInDays } from '../database/db.js';
-import { getPreviousMonthRange, formatNumber, formatCalendarDate, sleep } from '../utils/helpers.js';
+import { get10thTo9thRange, formatNumber, formatCalendarDate, sleep, normalizePhone } from '../utils/helpers.js';
 import { generateAssemblyReports, generateAssemblyReport } from './aiReportGenerator.js';
 import { generatePDFReport } from './pdfGenerator.js';
 import { getSocket } from '../bot/connection.js';
@@ -59,8 +59,14 @@ export async function generateAndDistributeMonthlyReport() {
     try {
         logger.info('Starting monthly report generation...');
 
-        // Get previous month date range
-        const { start, end } = getPreviousMonthRange();
+        // Verify we have reviewers configured
+        if (!config.reviewerNumbers || config.reviewerNumbers.length === 0) {
+            logger.error('No reviewer numbers configured (REVIEWER_NUMBERS in .env). Cannot distribute reports.');
+            return;
+        }
+
+        // Get 10th to 9th date range
+        const { start, end } = get10thTo9thRange();
 
         // Generate reports for all assemblies
         const assemblyReports = await generateAssemblyReports(start, end);
@@ -77,18 +83,10 @@ export async function generateAndDistributeMonthlyReport() {
             return;
         }
 
-        // Get all assemblies (for group JIDs)
-        const assemblies = await getAllAssemblies();
+        logger.info(`Distributing reports to ${config.reviewerNumbers.length} reviewers...`);
 
-        // Send each assembly's report to its own group
+        // Send each assembly's report to each reviewer for human review
         for (const report of assemblyReports) {
-            // Find this assembly's group JID
-            const assembly = assemblies.find(a => a.name === report.assemblyName);
-            if (!assembly || !assembly.whatsapp_group_id) {
-                logger.warn(`No WhatsApp group configured for ${report.assemblyName} - skipping distribution`);
-                continue;
-            }
-
             try {
                 // Generate PDF for this assembly
                 const pdfPath = await generatePDFReport(report);
@@ -96,25 +94,34 @@ export async function generateAndDistributeMonthlyReport() {
                 // Create summary message for this assembly
                 const summaryMessage = formatAssemblySummaryMessage(report);
 
-                // 1. Send text summary
-                await sock.sendMessage(assembly.whatsapp_group_id, {
-                    text: summaryMessage
-                });
-
-                // 2. Send PDF document
                 const fileBuffer = fs.readFileSync(pdfPath);
                 const fileName = `Evangelism_Report_${report.assemblyName.replace(/\s+/g, '_')}_${report.period.replace(/ /g, '_')}.pdf`;
 
-                await sock.sendMessage(assembly.whatsapp_group_id, {
-                    document: fileBuffer,
-                    mimetype: 'application/pdf',
-                    fileName: fileName,
-                    caption: `📄 ${report.assemblyName} - ${report.period} Full Report`
-                });
+                // Send text summary + PDF to each configured reviewer
+                for (const reviewer of config.reviewerNumbers) {
+                    const reviewerJid = normalizePhone(reviewer);
 
-                logger.info(`Report sent to ${report.assemblyName} group`);
+                    // Send text summary
+                    await sock.sendMessage(reviewerJid, {
+                        text: `*${report.assemblyName}*\n\n` + summaryMessage
+                    });
+
+                    // Send PDF document
+                    await sock.sendMessage(reviewerJid, {
+                        document: fileBuffer,
+                        mimetype: 'application/pdf',
+                        fileName: fileName,
+                        caption: `📄 ${report.assemblyName} - ${report.period} Full Report`
+                    });
+
+                    logger.info(`Report for ${report.assemblyName} sent to reviewer ${reviewerJid}`);
+
+                    // Small delay to prevent rate-limiting
+                    await sleep(2000);
+                }
+
             } catch (error) {
-                logger.error(`Failed to send report to ${report.assemblyName}:`, error);
+                logger.error(`Failed to generate/send report for ${report.assemblyName}:`, error);
             }
         }
 

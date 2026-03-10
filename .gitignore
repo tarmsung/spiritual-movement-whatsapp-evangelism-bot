@@ -1,8 +1,8 @@
 # Ignore node modules
 node_modules/
 
-# Ignore environment variables
-.env
+# Environment variables are tracked (needed for VPS deployment)
+# .env
 
 # Ignore authentication session
 auth_info_baileys/
