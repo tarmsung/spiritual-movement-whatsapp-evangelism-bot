@@ -216,20 +216,7 @@ function buildSMCPDFContent(doc, reportData) {
 
     doc.moveDown(1);
 
-    // Embed map if it exists
-    if (reportData.mapImagePath && existsSync(reportData.mapImagePath)) {
-        try {
-            doc.image(reportData.mapImagePath, {
-                fit: [500, 400],
-                align: 'center'
-            });
-            doc.moveDown(1);
-        } catch (error) {
-            logger.error('Error embedding map image:', error);
-        }
-    }
-
-    // List locations below map
+    // List locations
     if (reportData.locations && reportData.locations.length > 0) {
         doc.fontSize(11)
             .fillColor('#333')

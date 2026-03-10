@@ -7,7 +7,6 @@ import {
 } from '../database/db.js';
 import { getPeriodName } from '../utils/helpers.js';
 import { detectCommand, DEFAULT_COMMAND } from '../config/smc_reporting_commands.js';
-import { generateLocationPlot } from './coordinateMapGenerator.js';
 import { join } from 'path';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
@@ -131,21 +130,6 @@ export async function generateAssemblyReport(assembly, startDate, endDate, optio
         reportData.narrative = generateFallbackNarrative(reportData);
         reportData.messageEmphasis = generateFallbackMessageEmphasis();
         reportData.conclusion = generateFallbackConclusion(reportData);
-    }
-
-    // Generate location map if multiple locations
-    if (uniqueLocations.length > 1) {
-        try {
-            const mapPath = join(REPORTS_DIR, `map_${assembly.name.replace(/\s+/g, '_')}_${startDate}.png`);
-            const title = `${assembly.name} - ${reportData.period} Evangelism Locations`;
-            await generateLocationPlot(uniqueLocations, title, mapPath);
-            reportData.mapImagePath = mapPath;
-        } catch (error) {
-            logger.error('Error generating location map:', error);
-            reportData.mapImagePath = null;
-        }
-    } else {
-        reportData.mapImagePath = null;
     }
 
     return reportData;
