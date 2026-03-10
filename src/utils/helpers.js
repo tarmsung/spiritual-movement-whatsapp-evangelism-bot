@@ -108,21 +108,61 @@ export function getMonthName(date) {
 }
 
 /**
- * Get previous month date range
+ * Get report range (10th of previous month to 9th of current month)
+ * @param {Date} [baseDate] - Date to calculate from (defaults to now)
  * @returns {{start: string, end: string}}
  */
-export function getPreviousMonthRange() {
-    const now = new Date();
-    const year = now.getMonth() === 0 ? now.getFullYear() - 1 : now.getFullYear();
-    const month = now.getMonth() === 0 ? 11 : now.getMonth() - 1;
+export function get10thTo9thRange(baseDate = null) {
+    const now = baseDate ? new Date(baseDate) : new Date();
 
-    const start = new Date(year, month, 1);
-    const end = new Date(year, month + 1, 0);
+    // If the base date is before the 10th, it belongs to the previous cycle.
+    // E.g., March 5th implies the "Jan 10 - Feb 9" cycle.
+    // E.g., March 15th implies the "Feb 10 - March 9" cycle.
+    const isPast10th = now.getDate() >= 10;
+
+    // Current month of the cycle (the month the cycle Ends in)
+    let endYear = now.getFullYear();
+    let endMonth = isPast10th ? now.getMonth() : now.getMonth() - 1;
+
+    if (endMonth < 0) {
+        endMonth = 11;
+        endYear--;
+    }
+
+    // Previous month of the cycle (the month the cycle Starts in)
+    let startYear = endYear;
+    let startMonth = endMonth - 1;
+
+    if (startMonth < 0) {
+        startMonth = 11;
+        startYear--;
+    }
+
+    // Start: 10th of previous month
+    const start = new Date(startYear, startMonth, 10);
+    // End: 9th of current month
+    const end = new Date(endYear, endMonth, 9);
 
     return {
         start: start.toISOString().split('T')[0],
         end: end.toISOString().split('T')[0]
     };
+}
+
+/**
+ * Format the period name for the 10th to 9th cycle
+ * @param {string} startDate - YYYY-MM-DD
+ * @param {string} endDate - YYYY-MM-DD
+ * @returns {string} e.g. "January 10 - February 9, 2026"
+ */
+export function getPeriodName(startDate, endDate) {
+    const s = new Date(startDate);
+    const e = new Date(endDate);
+
+    const startStr = s.toLocaleDateString('en-US', { month: 'long', day: 'numeric' });
+    const endStr = e.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+
+    return `${startStr} - ${endStr}`;
 }
 
 /**

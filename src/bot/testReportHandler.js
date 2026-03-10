@@ -91,17 +91,46 @@ async function processAssemblySelection(sock, userJid, message, state) {
     // Build month options (last 12 months)
     const months = [];
     const now = new Date();
+
+    // We want the last 12 "10th to 9th" cycles.
+    // If today is before the 10th, the *current* active cycle ends in the previous month.
+    let currentEndYear = now.getFullYear();
+    let currentEndMonth = now.getDate() >= 10 ? now.getMonth() : now.getMonth() - 1;
+
+    if (currentEndMonth < 0) {
+        currentEndMonth = 11;
+        currentEndYear--;
+    }
+
     for (let i = 0; i < 12; i++) {
-        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-        const year = d.getFullYear();
-        const month = d.getMonth() + 1;
-        const monthStr = String(month).padStart(2, '0');
-        const lastDay = new Date(year, month, 0).getDate();
+        let endYear = currentEndYear;
+        let endMonth = currentEndMonth - i;
+
+        while (endMonth < 0) {
+            endMonth += 12;
+            endYear--;
+        }
+
+        let startYear = endYear;
+        let startMonth = endMonth - 1;
+
+        if (startMonth < 0) {
+            startMonth = 11;
+            startYear--;
+        }
+
+        const startStr = `${startYear}-${String(startMonth + 1).padStart(2, '0')}-10`;
+        const endStr = `${endYear}-${String(endMonth + 1).padStart(2, '0')}-09`;
+
+        const sDate = new Date(startYear, startMonth, 10);
+        const eDate = new Date(endYear, endMonth, 9);
+
+        const labelStr = `${sDate.toLocaleString('en-US', { month: 'short' })} 10 - ${eDate.toLocaleString('en-US', { month: 'short', year: 'numeric' })} 9`;
 
         months.push({
-            label: `${d.toLocaleString('en-US', { month: 'long' })} ${year}`,
-            startDate: `${year}-${monthStr}-01`,
-            endDate: `${year}-${monthStr}-${lastDay}`
+            label: labelStr,
+            startDate: startStr,
+            endDate: endStr
         });
     }
 

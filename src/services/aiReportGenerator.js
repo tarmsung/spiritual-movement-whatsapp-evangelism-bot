@@ -5,7 +5,7 @@ import {
     getAllAssemblies,
     getReportsForAssembly
 } from '../database/db.js';
-import { getMonthName } from '../utils/helpers.js';
+import { getPeriodName } from '../utils/helpers.js';
 import { detectCommand, DEFAULT_COMMAND } from '../config/smc_reporting_commands.js';
 import { generateLocationPlot } from './coordinateMapGenerator.js';
 import { join } from 'path';
@@ -94,7 +94,7 @@ export async function generateAssemblyReport(assembly, startDate, endDate, optio
     // Build report data
     const reportData = {
         assemblyName: assembly.name,
-        period: options.periodTitle || getMonthName(startDate),
+        period: options.periodTitle || getPeriodName(startDate, endDate),
         startDate,
         endDate,
         command: command.name,
