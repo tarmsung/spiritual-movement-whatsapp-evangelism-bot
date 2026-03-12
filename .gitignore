@@ -1,8 +1,8 @@
 # Ignore node modules
 node_modules/
 
-# Environment variables are ignored (best practice for security)
-.env
+# Environment variables (Tracking enabled for private repo)
+# .env
 
 # Ignore authentication session
 auth_info_baileys/
