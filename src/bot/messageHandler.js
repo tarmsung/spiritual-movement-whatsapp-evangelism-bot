@@ -6,7 +6,7 @@ import { hasActiveTestReport, startTestReport, processTestReportResponse } from 
 import { getUpcomingEvents, getNextEvent, isAdmin } from '../database/db.js';
 import { handleDmMenu } from './menus/dmMenuHandler.js';
 
-import { formatCalendarDate } from '../utils/helpers.js';
+import { formatCalendarDate, extractPhone } from '../utils/helpers.js';
 
 /**
  * Main message handler
@@ -42,7 +42,7 @@ export async function handleMessage(sock, msg, messageText) {
     }
 
     // Determine admin status
-    const phone = userJid.split('@')[0];
+    const phone = extractPhone(userJid);
     const isUserAdmin = await isAdmin(phone);
 
     // Route EVERYTHING else in DMs to the modern DM menu system

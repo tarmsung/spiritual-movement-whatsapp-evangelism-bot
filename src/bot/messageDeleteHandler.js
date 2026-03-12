@@ -1,5 +1,6 @@
 import logger from '../utils/logger.js';
 import { deleteReportByMessageId } from '../database/db.js';
+import { extractPhone } from '../utils/helpers.js';
 
 /**
  * Handle deleted WhatsApp messages.
@@ -34,7 +35,7 @@ export async function handleMessageDelete(sock, keys) {
             // In Baileys, the participant who deleted is in key.participant (group sender).
             // We use their phone number as a fallback if name isn't available.
             const deleterJid = key.participant || key.remoteJid;
-            const deleterPhone = deleterJid ? deleterJid.split('@')[0] : 'Unknown';
+            const deleterPhone = extractPhone(deleterJid) || 'Unknown';
 
             // Try to get the deleter's WhatsApp push name — not always available from the key,
             // so we fall back to phone number.

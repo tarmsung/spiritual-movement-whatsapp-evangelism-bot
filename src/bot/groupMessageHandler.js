@@ -1,6 +1,7 @@
 import { isEvangelismReport, parseReport, validateParsedReport } from '../utils/groupReportParser.js';
 import { getAssemblyByGroupJid, createGroupReport } from '../database/db.js';
 import { sendUpcomingEvents, sendNextEvent } from './messageHandler.js';
+import { extractPhone } from '../utils/helpers.js';
 import logger from '../utils/logger.js';
 
 /**
@@ -57,7 +58,7 @@ export async function handleGroupMessage(sock, msg, messageText) {
             logger.warn(`[GROUP] Invalid evangelism report from ${senderJid}:`, validation.errors);
 
             // Optionally send error message to group
-            const errorMsg = `❌ *Evangelism Report Error* @${senderJid.split('@')[0]}\n\n` +
+            const errorMsg = `❌ *Evangelism Report Error* @${extractPhone(senderJid)}\n\n` +
                 `The report could not be saved due to the following issues:\n` +
                 validation.errors.map(err => `• ${err}`).join('\n') +
                 `\n\n_Please check the format and try again._`;
@@ -82,7 +83,7 @@ export async function handleGroupMessage(sock, msg, messageText) {
         }
 
         // Extract sender phone number
-        const senderPhone = senderJid ? senderJid.split('@')[0] : 'unknown';
+        const senderPhone = extractPhone(senderJid) || 'unknown';
 
         // If reporter_name is missing, use the sender's phone number
         if (!parsedReport.reporter_name || parsedReport.reporter_name.trim() === '') {

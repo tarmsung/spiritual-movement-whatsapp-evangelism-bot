@@ -65,7 +65,8 @@ export function normalizePhone(phone) {
  * @returns {string}
  */
 export function extractPhone(jid) {
-    return jid.split('@')[0];
+    if (!jid) return '';
+    return jid.split('@')[0].split(':')[0];
 }
 
 /**

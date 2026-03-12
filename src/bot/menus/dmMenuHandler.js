@@ -12,7 +12,7 @@ import { handleMemberMenu } from './memberMenu.js';
  * @param {boolean} isUserAdmin - Whether the user has admin privileges
  */
 export async function handleDmMenu(sock, msg, userJid, messageText, isUserAdmin) {
-    const phone = userJid.split('@')[0];
+    const phone = extractPhone(userJid);
     const normalizedMessage = messageText.trim().toLowerCase();
 
     // Check if the user wants to cancel out of any menu

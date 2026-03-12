@@ -10,7 +10,7 @@ import logger from '../../utils/logger.js';
  * @param {Object} formData - Any data being carried through the state
  */
 export async function handleExecutorMenu(sock, userJid, messageText, currentStep, formData) {
-    const phone = userJid.split('@')[0];
+    const phone = extractPhone(userJid);
     const normalizedMessage = messageText.trim().toLowerCase();
 
     try {
