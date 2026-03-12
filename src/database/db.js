@@ -93,6 +93,81 @@ export async function getAssemblyByGroupJid(groupJid) {
 
 
 /**
+ * ADMINS - CRUD Operations
+ */
+
+/**
+ * Check if a number is an admin (either in config or in DB)
+ * @param {string} phone - User phone number
+ * @returns {Promise<boolean>}
+ */
+export async function isAdmin(phone) {
+  // Check config first (faster)
+  if (config.adminNumbers.includes(phone)) {
+    return true;
+  }
+
+  // Check database
+  const { data, error } = await supabase
+    .from('admins')
+    .select('id')
+    .eq('phone_number', phone)
+    .single();
+
+  if (error && error.code !== 'PGRST116') {
+    logger.error(`Error checking admin status for ${phone}:`, error.message);
+    return false;
+  }
+
+  return !!data;
+}
+
+/**
+ * Get all admins from the database
+ * @returns {Promise<Array>}
+ */
+export async function getAllAdmins() {
+  const { data, error } = await supabase
+    .from('admins')
+    .select('*')
+    .order('name');
+
+  if (error) throw error;
+  return data;
+}
+
+/**
+ * Add a new admin to the database
+ * @param {string} phone 
+ * @param {string} name 
+ * @param {string} role 
+ */
+export async function addAdmin(phone, name, role = 'executor') {
+  const { data, error } = await supabase
+    .from('admins')
+    .insert([{ phone_number: phone, name, role }])
+    .select();
+
+  if (error) throw error;
+  return data[0];
+}
+
+/**
+ * Remove an admin from the database
+ * @param {string} phone 
+ */
+export async function removeAdmin(phone) {
+  const { error } = await supabase
+    .from('admins')
+    .delete()
+    .eq('phone_number', phone);
+
+  if (error) throw error;
+  return { changes: 1 };
+}
+
+
+/**
  * REPORTS - CRUD Operations
  */
 

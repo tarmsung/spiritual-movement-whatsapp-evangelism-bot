@@ -3,7 +3,9 @@ import logger from '../utils/logger.js';
 import { startReportForm, processFormResponse, hasActiveForm } from '../forms/reportForm.js';
 import { handleGroupMessage } from './groupMessageHandler.js';
 import { hasActiveTestReport, startTestReport, processTestReportResponse } from './testReportHandler.js';
-import { getUpcomingEvents, getNextEvent } from '../database/db.js';
+import { getUpcomingEvents, getNextEvent, isAdmin } from '../database/db.js';
+import { handleDmMenu } from './menus/dmMenuHandler.js';
+
 import { formatCalendarDate } from '../utils/helpers.js';
 
 /**
@@ -24,21 +26,14 @@ export async function handleMessage(sock, msg, messageText) {
 
     logger.info(`Message from ${userJid}: ${messageText}`);
 
-    // Check if user has an active test report session
+    // Check if user has an active test report session (this runs independently of the DM menu)
     if (hasActiveTestReport(userJid)) {
         await processTestReportResponse(sock, userJid, messageText);
         return;
     }
 
-    // Check if user has an active form
-    if (await hasActiveForm(userJid)) {
-        await processFormResponse(sock, userJid, messageText);
-        return;
-    }
-
-    // Check for wake phrase ('evangelism')
+    // Check for wake phrase ('evangelism') in DM - gently block
     const normalizedMessage = messageText.trim().toLowerCase();
-
     if (normalizedMessage === 'evangelism') {
         await sock.sendMessage(userJid, {
             text: '🚫❌ Evangelism reports cannot be submitted via DM.\n\n📢 Please use the group to submit your report! 🙏'
@@ -46,40 +41,12 @@ export async function handleMessage(sock, msg, messageText) {
         return;
     }
 
-    // Help command
-    if (normalizedMessage === '!help' || normalizedMessage === 'help') {
-        await sendHelpMessage(sock, userJid);
-        return;
-    }
+    // Determine admin status
+    const phone = userJid.split('@')[0];
+    const isUserAdmin = await isAdmin(phone);
 
-    // Events command (can include a month, e.g. "!events march")
-    if (normalizedMessage.startsWith('!events') || normalizedMessage.startsWith('events')) {
-        // Extract month argument if present
-        const parts = normalizedMessage.split(' ');
-        const monthArg = parts.length > 1 ? parts[1] : null;
-        await sendUpcomingEvents(sock, userJid, monthArg);
-        return;
-    }
-
-
-    // Next event command
-    if (normalizedMessage === '!next' || normalizedMessage === 'next event') {
-        await sendNextEvent(sock, userJid);
-        return;
-    }
-
-    // Test report command
-    if (normalizedMessage === 'testreport' || normalizedMessage === '!testreport') {
-        await startTestReport(sock, userJid);
-        return;
-    }
-
-    // Unknown command - send gentle reminder
-    if (normalizedMessage.startsWith('!')) {
-        await sock.sendMessage(userJid, {
-            text: `I don't recognize that command. Send "evangelism" to start an evangelism report, or send "!help" for assistance.`
-        });
-    }
+    // Route EVERYTHING else in DMs to the modern DM menu system
+    await handleDmMenu(sock, msg, userJid, messageText, isUserAdmin);
 }
 
 /**
