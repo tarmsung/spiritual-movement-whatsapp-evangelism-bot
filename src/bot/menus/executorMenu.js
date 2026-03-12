@@ -1,4 +1,5 @@
 import { saveUserFormState, clearUserFormState } from '../../database/db.js';
+import { extractPhone } from '../../utils/helpers.js';
 import logger from '../../utils/logger.js';
 
 /**

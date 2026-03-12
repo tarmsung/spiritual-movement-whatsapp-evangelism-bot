@@ -1,4 +1,5 @@
 import { saveUserFormState, clearUserFormState } from '../../database/db.js';
+import { extractPhone } from '../../utils/helpers.js';
 import logger from '../../utils/logger.js';
 import { sendUpcomingEvents, sendNextEvent } from '../messageHandler.js';
 import { startTestReport } from '../testReportHandler.js';
