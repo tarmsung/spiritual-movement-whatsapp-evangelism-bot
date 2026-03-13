@@ -23,13 +23,21 @@ export async function handleMessage(sock, msg, messageText) {
     }
 
     // --- DM Handling ---
-    // If the sender is a LID (@lid), resolve it to the real phone JID using our contact cache
+    // If the sender is a LID (@lid), resolve it to the real phone JID using our contact cache.
+    // If cache misses, also try msg.key.remoteJidAlt which WhatsApp sometimes provides directly.
     let senderJid = remoteJid;
     if (senderJid.endsWith('@lid')) {
-        const resolved = lidToPhone[senderJid];
-        if (resolved) {
-            logger.info(`[DM] Resolved LID ${senderJid} → ${resolved}`);
-            senderJid = resolved;
+        const cached = lidToPhone[senderJid];
+        const alt = msg.key.remoteJidAlt;
+
+        if (cached) {
+            logger.info(`[DM] Resolved LID ${senderJid} → ${cached} (cache)`);
+            senderJid = cached;
+        } else if (alt) {
+            logger.info(`[DM] Resolved LID ${senderJid} → ${alt} (remoteJidAlt)`);
+            senderJid = alt;
+            // Populate cache so future messages are instant
+            lidToPhone[senderJid] = alt;
         } else {
             logger.warn(`[DM] Unresolved LID: ${senderJid} — contact not synced yet, treating as non-admin`);
         }
