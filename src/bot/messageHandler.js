@@ -4,6 +4,7 @@ import { extractPhone } from '../utils/helpers.js';
 import { getUpcomingEvents, getNextEvent, isAdmin, isSupervisor } from '../database/db.js';
 import { formatCalendarDate } from '../utils/helpers.js';
 import { lidToPhone } from './connection.js';
+import { handleDmMenu } from './menus/dmMenuHandler.js';
 
 
 /**
@@ -55,21 +56,8 @@ export async function handleMessage(sock, msg, messageText) {
 
     logger.info(`[DM] Message from ${phone} (admin: ${adminAccess}): ${messageText}`);
 
-    if (adminAccess) {
-        await handleAdminDm(sock, senderJid, messageText);
-        return;
-    }
-
-    // --- Supervisor fallback ---
-    let supervisorAccess = false;
-    try {
-        supervisorAccess = await isSupervisor(phone);
-    } catch (err) {
-        logger.warn(`[DM] isSupervisor check failed for ${phone}, defaulting to false:`, err.message);
-    }
-
-    if (supervisorAccess) {
-        await handleSupervisorDm(sock, senderJid, messageText);
+    if (adminAccess || supervisorAccess) {
+        await handleDmMenu(sock, msg, senderJid, messageText, true);
         return;
     }
 
@@ -77,48 +65,17 @@ export async function handleMessage(sock, msg, messageText) {
 }
 
 /**
- * Handle DM from an admin user (listed in ADMIN_NUMBERS)
+ * Handle DM from an admin user (LEGACY - now routed through handleDmMenu)
  */
 async function handleAdminDm(sock, jid, messageText) {
-    const text = messageText.trim().toLowerCase();
-
-    // Wake word to open admin menu
-    if (text === 'admin') {
-        await sock.sendMessage(jid, {
-            text: `🛡️ *ADMIN MENU*\n\nPlease choose an option:\n\n1️⃣ Fetch Data\n2️⃣ Add Member\n3️⃣ Disable Member\n4️⃣ View Cluster\n\n_Reply with a number (1-4)_`
-        });
-        return;
-    }
-
-    // Handle menu choices
-    if (text === '1') {
-        await sock.sendMessage(jid, { text: '🔄 *Fetch Data* — Coming soon...' });
-        return;
-    }
-    if (text === '2') {
-        await sock.sendMessage(jid, { text: '➕ *Add Member* — Coming soon...' });
-        return;
-    }
-    if (text === '3') {
-        await sock.sendMessage(jid, { text: '🚫 *Disable Member* — Coming soon...' });
-        return;
-    }
-    if (text === '4') {
-        await sock.sendMessage(jid, { text: '🏘️ *View Cluster* — Coming soon...' });
-        return;
-    }
-
-    // Unrecognized input — prompt them to use the wake word
-    await sock.sendMessage(jid, {
-        text: `Type *Admin* to open the admin menu.`
-    });
+    // This is now handled by handleDmMenu -> handleExecutorMenu
 }
 
 /**
- * Handle DM from a supervisor — supervisors get the same admin menu access
+ * Handle DM from a supervisor (LEGACY - now routed through handleDmMenu)
  */
 async function handleSupervisorDm(sock, jid, messageText) {
-    await handleAdminDm(sock, jid, messageText);
+    // This is now handled by handleDmMenu -> handleExecutorMenu
 }
 
 /**
