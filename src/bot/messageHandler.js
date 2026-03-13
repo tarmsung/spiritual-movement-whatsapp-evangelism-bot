@@ -1,78 +1,8 @@
 import config from '../config/config.js';
 import logger from '../utils/logger.js';
-import { startReportForm, processFormResponse, hasActiveForm } from '../forms/reportForm.js';
 import { handleGroupMessage } from './groupMessageHandler.js';
-import { hasActiveTestReport, startTestReport, processTestReportResponse } from './testReportHandler.js';
-import { getUpcomingEvents, getNextEvent, isAdmin } from '../database/db.js';
-import { handleDmMenu } from './menus/dmMenuHandler.js';
-
-import { formatCalendarDate, extractPhone, getCleanPhone } from '../utils/helpers.js';
-import { lidCache } from './connection.js';
-
-/**
- * Resolves a JID to a phone number using store and network lookups
- * @param {string} jid - User's JID
- * @param {Object} sock - WhatsApp socket
- * @returns {Promise<string|null>} - Resolved phone number (digits) or null
- */
-export async function resolvePhone(jid, sock) {
-    logger.info(`[DEBUG] Entering resolvePhone for JID: ${jid}`);
-    // 1. Already a phone JID
-    if (jid?.endsWith('@s.whatsapp.net') || jid?.endsWith('@c.us')) {
-        const clean = getCleanPhone(jid);
-        logger.info(`[DEBUG] Resolved natively as phone: ${clean}`);
-        return clean;
-    }
-
-    // 2. Try store contact lookup for @lid
-    if (jid?.endsWith('@lid')) {
-        logger.debug(`[AUTH] Attempting store resolution for LID: ${jid}`);
-        if (lidCache[jid]) {
-            logger.info(`[AUTH] Resolved LID ${jid} to phone via cache: ${lidCache[jid]}`);
-            return getCleanPhone(lidCache[jid]);
-        }
-
-        // 3. Try fetching contact info directly from WhatsApp
-        try {
-            logger.debug(`[AUTH] Attempting network resolution for LID: ${jid}`);
-            const [result] = await sock.onWhatsApp(jid);
-            if (result?.exists && result?.jid) {
-                logger.info(`[AUTH] Resolved LID ${jid} to phone via network: ${result.jid}`);
-                // Save to our custom cache
-                lidCache[jid] = result.jid;
-                return getCleanPhone(result.jid);
-            }
-        } catch (e) {
-            logger.warn(`[AUTH] Network resolution failed for ${jid}: ${e.message}`);
-        }
-    }
-
-    logger.info(`[DEBUG] resolvePhone returning null for: ${jid}`);
-    return null; // Unresolvable
-}
-
-/**
- * Check if a user is authorized (Admin only for now)
- * @param {string} resolvedPhone - Cleaned phone number digits
- * @returns {Promise<boolean>}
- */
-async function checkAuthorization(resolvedPhone) {
-    logger.info(`[DEBUG] Entering checkAuthorization for: ${resolvedPhone}`);
-    if (!resolvedPhone) return false;
-
-    // Normalize admin numbers from config (.env) for comparison
-    const cleanAdminNumbers = config.adminNumbers.map(n => getCleanPhone(n));
-    logger.info(`[DEBUG] Cleaned admin numbers from env: ${JSON.stringify(cleanAdminNumbers)}`);
-    
-    // Check against Admin Numbers
-    const isAuthorized = cleanAdminNumbers.includes(resolvedPhone);
-    
-    if (!isAuthorized) {
-        logger.warn(`[AUTH] Authorization failed for "${resolvedPhone}". Not in ${JSON.stringify(cleanAdminNumbers)}`);
-    }
-
-    return isAuthorized;
-}
+import { getUpcomingEvents, getNextEvent } from '../database/db.js';
+import { formatCalendarDate } from '../utils/helpers.js';
 
 /**
  * Main message handler
@@ -92,76 +22,13 @@ export async function handleMessage(sock, msg, messageText) {
         return;
     }
 
-    // Resolve LID to phone if necessary
-    const resolvedPhone = await resolvePhone(userJid, sock);
+    // DM Functionality gracefully disabled
+    logger.info(`[DM] Ignoring DM from ${userJid} as DM functionality is currently disabled.`);
     
-    if (!resolvedPhone) {
-        logger.warn(`[AUTH] Could not resolve identity for ${userJid}`);
-        await sock.sendMessage(userJid, { text: "🚫 Access Denied: Unresolvable identity." });
-        return;
-    }
-
-    logger.info(`[DEBUG] Identity resolved to: ${resolvedPhone}. Checking authorization...`);
-    const isAuthorized = await checkAuthorization(resolvedPhone);
-
-    logger.info(`[DEBUG] isAuthorized result: ${isAuthorized}`);
-    if (!isAuthorized) {
-        logger.warn(`[AUTH] Unauthorized DM attempt from ${resolvedPhone} (JID: ${userJid})`);
-        await sock.sendMessage(userJid, { text: "🚫 You are not authorised." });
-        return;
-    }
-
-    logger.info(`Message from ${userJid}: ${messageText}`);
-
-    // Check if user has an active test report session
-    if (hasActiveTestReport(userJid)) {
-        await processTestReportResponse(sock, userJid, messageText);
-        return;
-    }
-
-    // Check for wake phrase ('evangelism') in DM - gently block
-    const normalizedMessage = messageText.trim().toLowerCase();
-    if (normalizedMessage === 'evangelism') {
-        await sock.sendMessage(userJid, {
-            text: '🚫❌ Evangelism reports cannot be submitted via DM.\n\n📢 Please use the group to submit your report! 🙏'
-        });
-        return;
-    }
-
-    // Determine admin status specifically for menu routing (admins get Executor menu)
-    logger.info(`[DEBUG] Checking database admin status for menu routing...`);
-    const isUserAdmin = await isAdmin(resolvedPhone);
-    logger.info(`[DEBUG] Database isAdmin result: ${isUserAdmin}`);
-
-    // Route EVERYTHING else in DMs to the modern DM menu system
-    logger.info(`[DEBUG] Routing to DM menu...`);
-    await handleDmMenu(sock, msg, userJid, messageText, isUserAdmin);
-    logger.info(`[DEBUG] DM menu handled successfully.`);
+    // Optionally alert the user (commented out for complete silence)
+    // await sock.sendMessage(userJid, { text: "🚧 Direct Messaging with the bot is currently disabled for maintenance." });
 }
 
-/**
- * Send help message
- */
-async function sendHelpMessage(sock, userJid) {
-    let helpText = `📖 EVANGELISM REPORTER BOT\n\n`;
-    helpText += `Welcome to ${config.churchName}'s Evangelism Reporter!\n\n`;
-    helpText += `*COMMANDS:*\n`;
-    helpText += `evangelism - Start new evangelism report\n`;
-    helpText += `!events - View upcoming church events\n`;
-    helpText += `!next - View the next upcoming event\n`;
-    helpText += `testreport - Generate a test report\n`;
-    helpText += `!help - Show this help message\n`;
-    helpText += `cancel - Cancel current form (during filling)\n\n`;
-    helpText += `*HOW IT WORKS:*\n`;
-    helpText += `1. Send "evangelism" to begin\n`;
-    helpText += `2. Answer the questions step by step\n`;
-    helpText += `3. Review and confirm your report\n`;
-    helpText += `4. Your report is automatically posted to your assembly group\n\n`;
-    helpText += `All reports are stored and analyzed for monthly summaries.\n\n`;
-    helpText += `God bless your evangelism efforts! 🙏`;
-
-    await sock.sendMessage(userJid, { text: helpText });
-}
 
 /**
  * Send upcoming events list for a specific month
