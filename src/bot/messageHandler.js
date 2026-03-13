@@ -1,7 +1,7 @@
 import logger from '../utils/logger.js';
 import { handleGroupMessage } from './groupMessageHandler.js';
-import { extractPhone, isAdminJid } from '../utils/helpers.js';
-import { getUpcomingEvents, getNextEvent } from '../database/db.js';
+import { extractPhone } from '../utils/helpers.js';
+import { getUpcomingEvents, getNextEvent, isAdmin, isSupervisor } from '../database/db.js';
 import { formatCalendarDate } from '../utils/helpers.js';
 import { lidToPhone } from './connection.js';
 
@@ -36,16 +36,36 @@ export async function handleMessage(sock, msg, messageText) {
     }
 
     const phone = extractPhone(senderJid);
-    const adminAccess = isAdminJid(senderJid);
 
+    // --- Authorization: env takes priority, Supabase admins table is the fallback ---
+    let adminAccess = false;
+    try {
+        adminAccess = await isAdmin(phone); // checks ADMIN_NUMBERS env first, then DB
+    } catch (err) {
+        logger.warn(`[DM] isAdmin check failed for ${phone}, defaulting to false:`, err.message);
+    }
 
     logger.info(`[DM] Message from ${phone} (admin: ${adminAccess}): ${messageText}`);
 
     if (adminAccess) {
         await handleAdminDm(sock, senderJid, messageText);
-    } else {
-        await handlePublicDm(sock, senderJid, messageText);
+        return;
     }
+
+    // --- Supervisor fallback ---
+    let supervisorAccess = false;
+    try {
+        supervisorAccess = await isSupervisor(phone);
+    } catch (err) {
+        logger.warn(`[DM] isSupervisor check failed for ${phone}, defaulting to false:`, err.message);
+    }
+
+    if (supervisorAccess) {
+        await handleSupervisorDm(sock, senderJid, messageText);
+        return;
+    }
+
+    await handlePublicDm(sock, senderJid, messageText);
 }
 
 /**
@@ -84,6 +104,13 @@ async function handleAdminDm(sock, jid, messageText) {
     await sock.sendMessage(jid, {
         text: `Type *Admin* to open the admin menu.`
     });
+}
+
+/**
+ * Handle DM from a supervisor — supervisors get the same admin menu access
+ */
+async function handleSupervisorDm(sock, jid, messageText) {
+    await handleAdminDm(sock, jid, messageText);
 }
 
 /**
