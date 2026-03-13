@@ -6,12 +6,7 @@ import { hasActiveTestReport, startTestReport, processTestReportResponse } from 
 import { getUpcomingEvents, getNextEvent, isAdmin } from '../database/db.js';
 import { handleDmMenu } from './menus/dmMenuHandler.js';
 
-import { formatCalendarDate, extractPhone } from '../utils/helpers.js';
-
-import { store } from './connection.js';
-
 import { formatCalendarDate, extractPhone, getCleanPhone } from '../utils/helpers.js';
-
 import { store } from './connection.js';
 
 /**
@@ -40,7 +35,7 @@ export async function resolvePhone(jid, sock) {
         // 3. Try fetching contact info directly from WhatsApp
         try {
             logger.debug(`[AUTH] Attempting network resolution for LID: ${jid}`);
-            const [result] = await sock.onWhatsApp(jid);
+            const [result] = await sock.onWhatsApp([jid]);
             if (result?.exists && result?.jid) {
                 logger.info(`[AUTH] Resolved LID ${jid} to phone via network: ${result.jid}`);
                 return getCleanPhone(result.jid);
@@ -125,7 +120,7 @@ export async function handleMessage(sock, msg, messageText) {
     }
 
     // Determine admin status specifically for menu routing (admins get Executor menu)
-    const isUserAdmin = await isAdmin(senderNumber);
+    const isUserAdmin = await isAdmin(resolvedPhone);
 
     // Route EVERYTHING else in DMs to the modern DM menu system
     await handleDmMenu(sock, msg, userJid, messageText, isUserAdmin);
