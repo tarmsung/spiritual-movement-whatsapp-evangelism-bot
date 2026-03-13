@@ -14,8 +14,20 @@ import { formatCalendarDate, extractPhone } from '../utils/helpers.js';
  * @returns {Promise<boolean>}
  */
 async function checkAuthorization(senderNumber) {
-    // Check against Admin Numbers from config (loaded from .env)
-    return config.adminNumbers.includes(senderNumber);
+    // Diagnostic logging to help debug authorization issues
+    logger.debug(`[AUTH] Checking authorization for: "${senderNumber}"`);
+    
+    // Normalize admin numbers by removing any '+' prefix for comparison
+    const cleanAdminNumbers = config.adminNumbers.map(n => n.replace('+', '').trim());
+    
+    // Check against Admin Numbers
+    const isAuthorized = cleanAdminNumbers.includes(senderNumber);
+    
+    if (!isAuthorized) {
+        logger.warn(`[AUTH] Authorization failed for "${senderNumber}". Not found in ${JSON.stringify(cleanAdminNumbers)}`);
+    }
+
+    return isAuthorized;
 }
 
 /**
