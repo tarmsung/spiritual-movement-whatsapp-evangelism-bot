@@ -3,6 +3,8 @@ import { handleGroupMessage } from './groupMessageHandler.js';
 import { extractPhone, isAdminJid } from '../utils/helpers.js';
 import { getUpcomingEvents, getNextEvent } from '../database/db.js';
 import { formatCalendarDate } from '../utils/helpers.js';
+import { lidToPhone } from './connection.js';
+
 
 /**
  * Main message handler - entry point for all incoming messages
@@ -21,9 +23,21 @@ export async function handleMessage(sock, msg, messageText) {
     }
 
     // --- DM Handling ---
-    const senderJid = remoteJid; // for DMs, the remoteJid IS the sender
+    // If the sender is a LID (@lid), resolve it to the real phone JID using our contact cache
+    let senderJid = remoteJid;
+    if (senderJid.endsWith('@lid')) {
+        const resolved = lidToPhone[senderJid];
+        if (resolved) {
+            logger.info(`[DM] Resolved LID ${senderJid} → ${resolved}`);
+            senderJid = resolved;
+        } else {
+            logger.warn(`[DM] Unresolved LID: ${senderJid} — contact not synced yet, treating as non-admin`);
+        }
+    }
+
     const phone = extractPhone(senderJid);
     const adminAccess = isAdminJid(senderJid);
+
 
     logger.info(`[DM] Message from ${phone} (admin: ${adminAccess}): ${messageText}`);
 

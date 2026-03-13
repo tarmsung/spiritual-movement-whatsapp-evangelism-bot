@@ -8,10 +8,31 @@ import qrcode from 'qrcode-terminal';
 import logger from '../utils/logger.js';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
+import fs from 'fs';
 import { handleMessageDelete } from './messageDeleteHandler.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
+
+const authFolder = join(__dirname, '../../auth_info_baileys');
+const lidCacheFile = join(authFolder, 'lid_cache.json');
+
+// Lightweight LID → phone JID mapping (persisted to file)
+export const lidToPhone = {};
+
+// Load from file on startup
+try {
+    if (fs.existsSync(lidCacheFile)) {
+        Object.assign(lidToPhone, JSON.parse(fs.readFileSync(lidCacheFile, 'utf8')));
+        logger.info(`LID cache loaded (${Object.keys(lidToPhone).length} entries)`);
+    }
+} catch (e) {
+    logger.warn('LID cache load failed, starting fresh:', e.message);
+}
+
+function saveLidCache() {
+    try { fs.writeFileSync(lidCacheFile, JSON.stringify(lidToPhone, null, 2)); } catch (e) { /* ignore */ }
+}
 
 
 let sock = null;
@@ -42,6 +63,28 @@ export async function startWhatsAppConnection(messageHandler) {
 
     // Handle credentials update
     sock.ev.on('creds.update', saveCreds);
+
+    // Build LID → phone mapping from contact syncs
+    sock.ev.on('contacts.upsert', (contacts) => {
+        let changed = false;
+        for (const c of contacts) {
+            if (c.lid && c.id) {
+                lidToPhone[c.lid] = c.id;
+                changed = true;
+            }
+        }
+        if (changed) saveLidCache();
+    });
+    sock.ev.on('contacts.update', (updates) => {
+        let changed = false;
+        for (const c of updates) {
+            if (c.lid && c.id) {
+                lidToPhone[c.lid] = c.id;
+                changed = true;
+            }
+        }
+        if (changed) saveLidCache();
+    });
 
     // Handle connection updates
     sock.ev.on('connection.update', async (update) => {
