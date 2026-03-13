@@ -15,6 +15,12 @@ const config = {
         ? process.env.ADMIN_NUMBERS.split(',').map(n => n.trim())
         : [],
 
+    // Admin LID fallback (for WhatsApp multi-device LIDs that can't be auto-resolved)
+    // Find your LID in the bot logs: "[DM] Unresolved LID: XXXXXXX@lid"
+    adminLids: process.env.ADMIN_LIDS
+        ? process.env.ADMIN_LIDS.split(',').map(n => n.trim())
+        : [],
+
     // Reviewer configuration (for monthly reports)
     reviewerNumbers: process.env.REVIEWER_NUMBERS
         ? process.env.REVIEWER_NUMBERS.split(',').map(n => n.trim())

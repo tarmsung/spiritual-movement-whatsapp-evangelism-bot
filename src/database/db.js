@@ -105,8 +105,13 @@ export async function getAssemblyByGroupJid(groupJid) {
 export async function isAdmin(phone) {
   const cleanPhone = extractPhone(phone);
   
-  // Check config first (faster)
+  // Check config first (faster) — covers both real phone numbers and LID numbers
   if (config.adminNumbers.map(n => extractPhone(n)).includes(cleanPhone)) {
+    return true;
+  }
+
+  // Check ADMIN_LIDS env var (LIDs that couldn't be auto-resolved to phone numbers)
+  if (config.adminLids.includes(cleanPhone)) {
     return true;
   }
 
