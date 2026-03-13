@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import config from '../config/config.js';
 import logger from '../utils/logger.js';
+import { getCleanPhone } from '../utils/helpers.js';
 
 // Initialize Supabase client
 const supabase = createClient(config.supabaseUrl, config.supabaseKey);
@@ -102,8 +103,10 @@ export async function getAssemblyByGroupJid(groupJid) {
  * @returns {Promise<boolean>}
  */
 export async function isAdmin(phone) {
+  const cleanPhone = getCleanPhone(phone);
+  
   // Check config first (faster)
-  if (config.adminNumbers.includes(phone)) {
+  if (config.adminNumbers.map(n => getCleanPhone(n)).includes(cleanPhone)) {
     return true;
   }
 
@@ -111,7 +114,7 @@ export async function isAdmin(phone) {
   const { data, error } = await supabase
     .from('admins')
     .select('id')
-    .eq('phone_number', phone)
+    .eq('phone_number', cleanPhone)
     .single();
 
   if (error && error.code !== 'PGRST116') {
@@ -176,10 +179,11 @@ export async function removeAdmin(phone) {
  * @returns {Promise<boolean>}
  */
 export async function isSupervisor(phone) {
+  const cleanPhone = getCleanPhone(phone);
   const { data, error } = await supabase
     .from('supervisors')
     .select('id')
-    .eq('phone_number', phone)
+    .eq('phone_number', cleanPhone)
     .single();
 
   if (error && error.code !== 'PGRST116') {

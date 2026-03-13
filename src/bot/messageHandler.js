@@ -8,23 +8,67 @@ import { handleDmMenu } from './menus/dmMenuHandler.js';
 
 import { formatCalendarDate, extractPhone } from '../utils/helpers.js';
 
+import { store } from './connection.js';
+
+import { formatCalendarDate, extractPhone, getCleanPhone } from '../utils/helpers.js';
+
+import { store } from './connection.js';
+
+/**
+ * Resolves a JID to a phone number using store and network lookups
+ * @param {string} jid - User's JID
+ * @param {Object} sock - WhatsApp socket
+ * @returns {Promise<string|null>} - Resolved phone number (digits) or null
+ */
+export async function resolvePhone(jid, sock) {
+    // 1. Already a phone JID
+    if (jid?.endsWith('@s.whatsapp.net') || jid?.endsWith('@c.us')) {
+        return getCleanPhone(jid);
+    }
+
+    // 2. Try store contact lookup for @lid
+    if (jid?.endsWith('@lid')) {
+        logger.debug(`[AUTH] Attempting store resolution for LID: ${jid}`);
+        const contacts = store?.contacts || {};
+        for (const [phoneJid, contact] of Object.entries(contacts)) {
+            if (contact.lid === jid) {
+                logger.info(`[AUTH] Resolved LID ${jid} to phone via store: ${phoneJid}`);
+                return getCleanPhone(phoneJid);
+            }
+        }
+
+        // 3. Try fetching contact info directly from WhatsApp
+        try {
+            logger.debug(`[AUTH] Attempting network resolution for LID: ${jid}`);
+            const [result] = await sock.onWhatsApp(jid);
+            if (result?.exists && result?.jid) {
+                logger.info(`[AUTH] Resolved LID ${jid} to phone via network: ${result.jid}`);
+                return getCleanPhone(result.jid);
+            }
+        } catch (e) {
+            logger.warn(`[AUTH] Network resolution failed for ${jid}: ${e.message}`);
+        }
+    }
+
+    return null; // Unresolvable
+}
+
 /**
  * Check if a user is authorized (Admin only for now)
- * @param {string} senderNumber - Cleaned phone number
+ * @param {string} resolvedPhone - Cleaned phone number digits
  * @returns {Promise<boolean>}
  */
-async function checkAuthorization(senderNumber) {
-    // Diagnostic logging to help debug authorization issues
-    logger.debug(`[AUTH] Checking authorization for: "${senderNumber}"`);
-    
-    // Normalize admin numbers by removing any '+' prefix for comparison
-    const cleanAdminNumbers = config.adminNumbers.map(n => n.replace('+', '').trim());
+async function checkAuthorization(resolvedPhone) {
+    if (!resolvedPhone) return false;
+
+    // Normalize admin numbers from config (.env) for comparison
+    const cleanAdminNumbers = config.adminNumbers.map(n => getCleanPhone(n));
     
     // Check against Admin Numbers
-    const isAuthorized = cleanAdminNumbers.includes(senderNumber);
+    const isAuthorized = cleanAdminNumbers.includes(resolvedPhone);
     
     if (!isAuthorized) {
-        logger.warn(`[AUTH] Authorization failed for "${senderNumber}". Not found in ${JSON.stringify(cleanAdminNumbers)}`);
+        logger.warn(`[AUTH] Authorization failed for "${resolvedPhone}". Not in ${JSON.stringify(cleanAdminNumbers)}`);
     }
 
     return isAuthorized;
@@ -40,18 +84,25 @@ export async function handleMessage(sock, msg, messageText) {
     const userJid = msg.key.remoteJid;
     const isGroup = userJid.endsWith('@g.us');
 
-    // Route group messages to group handler (it has its own auth check)
+    // Route group messages to group handler
     if (isGroup) {
         await handleGroupMessage(sock, msg, messageText);
         return;
     }
 
-    const senderNumber = extractPhone(userJid);
-    const isAuthorized = await checkAuthorization(senderNumber);
+    // Resolve LID to phone if necessary
+    const resolvedPhone = await resolvePhone(userJid, sock);
+    
+    if (!resolvedPhone) {
+        logger.warn(`[AUTH] Could not resolve identity for ${userJid}`);
+        await sock.sendMessage(userJid, { text: "🚫 Access Denied: Unresolvable identity." });
+        return;
+    }
+
+    const isAuthorized = await checkAuthorization(resolvedPhone);
 
     if (!isAuthorized) {
-        logger.warn(`[AUTH] Unauthorized DM attempt from ${senderNumber}`);
-        // Only reply in DMs (redundant check here but safe)
+        logger.warn(`[AUTH] Unauthorized DM attempt from ${resolvedPhone} (JID: ${userJid})`);
         await sock.sendMessage(userJid, { text: "🚫 You are not authorised." });
         return;
     }

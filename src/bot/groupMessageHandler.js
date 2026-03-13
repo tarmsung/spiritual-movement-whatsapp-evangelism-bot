@@ -39,6 +39,8 @@ export async function handleGroupMessage(sock, msg, messageText) {
 
 
     // Check if this is an evangelism report
+    // NOTE: Group commands like !events and !next remain open to all members.
+    // Only the submission of evangelism reports is restricted by supervisor status if needed.
     if (!isEvangelismReport(messageText)) {
         logger.info(`[GROUP] Not an evangelism report, ignoring.`);
         return;

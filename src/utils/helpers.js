@@ -43,20 +43,31 @@ export function parseDate(input) {
 }
 
 /**
- * Normalize phone number to WhatsApp format
+ * Get clean digits from a phone number or JID
+ * Strips formatting and handles leading 0 to 263 conversion
+ * @param {string} raw
+ * @returns {string}
+ */
+export function getCleanPhone(raw) {
+    if (!raw) return '';
+    // Strip everything except digits
+    let cleaned = raw.replace(/[^0-9]/g, '');
+    // Handle leading zero (common in user input)
+    if (cleaned.startsWith('0')) {
+        cleaned = '263' + cleaned.substring(1);
+    }
+    return cleaned;
+}
+
+/**
+ * Normalize phone number to WhatsApp JID format
  * @param {string} phone
  * @returns {string}
  */
 export function normalizePhone(phone) {
-    // Remove all non-digits
-    phone = phone.replace(/\D/g, '');
-
-    // Add @s.whatsapp.net if not present
-    if (!phone.includes('@')) {
-        phone = phone + '@s.whatsapp.net';
-    }
-
-    return phone;
+    const cleaned = getCleanPhone(phone);
+    if (!cleaned) return '';
+    return cleaned + '@s.whatsapp.net';
 }
 
 /**

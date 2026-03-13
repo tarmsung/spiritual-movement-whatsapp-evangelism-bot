@@ -1,7 +1,8 @@
 import makeWASocket, {
     DisconnectReason,
     useMultiFileAuthState,
-    fetchLatestBaileysVersion
+    fetchLatestBaileysVersion,
+    makeInMemoryStore
 } from '@whiskeysockets/baileys';
 import { Boom } from '@hapi/boom';
 import qrcode from 'qrcode-terminal';
@@ -12,6 +13,29 @@ import { handleMessageDelete } from './messageDeleteHandler.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
+
+const authFolder = join(__dirname, '../../auth_info_baileys');
+const storeFile = join(authFolder, 'store.json');
+
+// Initialize store
+export const store = makeInMemoryStore({});
+
+// Load store from file
+try {
+    store.readFromFile(storeFile);
+    logger.info('Contact store loaded successfully');
+} catch (err) {
+    logger.warn('No contact store file found or error loading, starting fresh');
+}
+
+// Periodically save store to file
+setInterval(() => {
+    try {
+        store.writeToFile(storeFile);
+    } catch (err) {
+        logger.error('Failed to save contact store:', err);
+    }
+}, 10_000);
 
 let sock = null;
 
@@ -38,6 +62,9 @@ export async function startWhatsAppConnection(messageHandler) {
         logger: logger.child({ module: 'baileys' }),
         browser: ['Evangelism Bot', 'Chrome', '1.0.0']
     });
+
+    // Bind store to events
+    store.bind(sock.ev);
 
     // Handle credentials update
     sock.ev.on('creds.update', saveCreds);
