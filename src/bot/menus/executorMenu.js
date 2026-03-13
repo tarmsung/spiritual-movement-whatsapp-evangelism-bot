@@ -62,26 +62,45 @@ export async function handleExecutorMenu(sock, userJid, messageText, currentStep
             case MENU_STEPS.EXECUTOR_FETCH_DATA_GET_STATES_CLUSTER:
             case MENU_STEPS.EXECUTOR_FETCH_DATA_REPORTS_SUMMARY_CLUSTER:
                 const assemblies = await getAllAssemblies();
-                const choice = parseInt(normalizedMessage);
+                const clusterChoice = parseInt(normalizedMessage);
                 
-                if (isNaN(choice) || choice < 1 || choice > assemblies.length) {
+                if (isNaN(clusterChoice) || clusterChoice < 1 || clusterChoice > assemblies.length) {
                     await sock.sendMessage(userJid, { text: `❌ Invalid choice. Please reply with a number between 1 and ${assemblies.length}.` });
                     return;
                 }
 
-                const selectedAssembly = assemblies[choice - 1];
-                await sock.sendMessage(userJid, { text: `🔄 Generating report for *${selectedAssembly.name}*...` });
+                const selectedAssembly = assemblies[clusterChoice - 1];
+                
+                // Save selection and transition to month selection
+                formData.assemblyId = selectedAssembly.id;
+                formData.assemblyName = selectedAssembly.name;
+                formData.reportType = (currentStep === MENU_STEPS.EXECUTOR_FETCH_DATA_GET_STATES_CLUSTER) ? 'states' : 'summary';
+                
+                await sendMonthSelection(sock, userJid);
+                await saveUserFormState(phone, MENU_STEPS.EXECUTOR_FETCH_DATA_MONTH, formData);
+                break;
 
-                // Date range: Current Month
-                const now = new Date();
-                const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
-                const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
+            case MENU_STEPS.EXECUTOR_FETCH_DATA_MONTH:
+                const monthChoice = parseInt(normalizedMessage);
+                const months = getRecentMonths(6);
+                
+                if (isNaN(monthChoice) || monthChoice < 1 || monthChoice > months.length) {
+                    await sock.sendMessage(userJid, { text: `❌ Invalid choice. Please reply with a number between 1 and ${months.length}.` });
+                    return;
+                }
+
+                const selectedMonth = months[monthChoice - 1];
+                await sock.sendMessage(userJid, { text: `🔄 Generating report for *${formData.assemblyName}* (${selectedMonth.label})...` });
+
+                const start = selectedMonth.start;
+                const end = selectedMonth.end;
+                const assemblyObj = { id: formData.assemblyId, name: formData.assemblyName };
 
                 let report;
-                if (currentStep === MENU_STEPS.EXECUTOR_FETCH_DATA_GET_STATES_CLUSTER) {
-                    report = await getStatesReport(selectedAssembly, startOfMonth, endOfMonth);
+                if (formData.reportType === 'states') {
+                    report = await getStatesReport(assemblyObj, start, end);
                 } else {
-                    report = await getReportsSummary(selectedAssembly, startOfMonth, endOfMonth);
+                    report = await getReportsSummary(assemblyObj, start, end);
                 }
 
                 await sock.sendMessage(userJid, { text: report });
@@ -147,4 +166,68 @@ async function sendClusterSelection(sock, userJid, reportType) {
     menuText += `\n_Reply with the cluster number (1-${assemblies.length})._`;
 
     await sock.sendMessage(userJid, { text: menuText });
+}
+
+/**
+ * Send the month selection menu
+ */
+async function sendMonthSelection(sock, userJid) {
+    const months = getRecentMonths(6);
+    
+    let menuText = `📅 *SELECT MONTH*\n`;
+    menuText += `────────────────────\n\n`;
+    menuText += `Please choose the month you want to fetch the data from:\n\n`;
+    
+    months.forEach((m, index) => {
+        menuText += `${index + 1}. ${m.label}\n`;
+    });
+    
+    menuText += `\n_Reply with the number (1-${months.length})._`;
+
+    await sock.sendMessage(userJid, { text: menuText });
+}
+
+/**
+ * Generate a list of recent months (cycles)
+ * @param {number} count - Number of months to return
+ */
+function getRecentMonths(count) {
+    const months = [];
+    const now = new Date();
+    
+    for (let i = 0; i < count; i++) {
+        // We calculate the range for i months ago
+        const date = new Date(now.getFullYear(), now.getMonth() - i, 15);
+        
+        // Use 10th-9th cycle matching the bot's standard
+        const isPast10th = date.getDate() >= 10;
+        let endYear = date.getFullYear();
+        let endMonth = isPast10th ? date.getMonth() : date.getMonth() - 1;
+        
+        if (endMonth < 0) {
+            endMonth = 11;
+            endYear--;
+        }
+        
+        // Start: 10th of previous month
+        let startYear = endYear;
+        let startMonth = endMonth - 1;
+        if (startMonth < 0) {
+            startMonth = 11;
+            startYear--;
+        }
+        
+        const startDate = new Date(startYear, startMonth, 10);
+        const endDate = new Date(endYear, endMonth, 9);
+        
+        const label = endDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+        
+        months.push({
+            label: label,
+            start: startDate.toISOString().split('T')[0],
+            end: endDate.toISOString().split('T')[0]
+        });
+    }
+    
+    return months;
 }
