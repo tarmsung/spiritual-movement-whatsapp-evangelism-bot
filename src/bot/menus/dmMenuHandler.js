@@ -3,6 +3,7 @@ import { extractPhone } from '../../utils/helpers.js';
 import logger from '../../utils/logger.js';
 import { handleExecutorMenu } from './executorMenu.js';
 import { handleMemberMenu } from './memberMenu.js';
+import { MENU_STEPS } from '../../utils/constants.js';
 
 /**
  * Handle direct messages based on user state
@@ -31,15 +32,15 @@ export async function handleDmMenu(sock, msg, userJid, messageText, isUserAdmin)
         if (normalizedMessage === 'admin') {
             if (isUserAdmin) {
                 // Initialize Executor menu state
-                await saveUserFormState(phone, 'executor_menu_main', {});
-                await handleExecutorMenu(sock, userJid, messageText, 'executor_menu_main', {});
+                await saveUserFormState(phone, MENU_STEPS.EXECUTOR_MAIN, {});
+                await handleExecutorMenu(sock, userJid, messageText, MENU_STEPS.EXECUTOR_MAIN, {});
             } else {
                 await sock.sendMessage(userJid, { text: '🚫 Access Denied: You do not have Executor privileges.' });
             }
         } else {
             // Default to Member menu
-            await saveUserFormState(phone, 'member_menu_main', {});
-            await handleMemberMenu(sock, userJid, messageText, 'member_menu_main', {});
+            await saveUserFormState(phone, MENU_STEPS.MEMBER_MAIN, {});
+            await handleMemberMenu(sock, userJid, messageText, MENU_STEPS.MEMBER_MAIN, {});
         }
         return;
     }
@@ -49,7 +50,7 @@ export async function handleDmMenu(sock, msg, userJid, messageText, isUserAdmin)
     const formData = state.form_data || {};
 
     try {
-        if (currentStep.startsWith('executor_')) {
+        if (currentStep === MENU_STEPS.EXECUTOR_MAIN || currentStep === MENU_STEPS.EXECUTOR_WAIT) {
             // Double-check admin privileges just in case
             if (!isUserAdmin) {
                 await clearUserFormState(phone);
@@ -57,7 +58,7 @@ export async function handleDmMenu(sock, msg, userJid, messageText, isUserAdmin)
                 return;
             }
             await handleExecutorMenu(sock, userJid, messageText, currentStep, formData);
-        } else if (currentStep.startsWith('member_')) {
+        } else if (currentStep === MENU_STEPS.MEMBER_MAIN || currentStep === MENU_STEPS.MEMBER_WAIT) {
             await handleMemberMenu(sock, userJid, messageText, currentStep, formData);
         } else {
             // Unknown state... clear it

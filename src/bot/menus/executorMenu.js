@@ -1,13 +1,14 @@
 import { saveUserFormState, clearUserFormState } from '../../database/db.js';
 import { extractPhone } from '../../utils/helpers.js';
 import logger from '../../utils/logger.js';
+import { MENU_STEPS } from '../../utils/constants.js';
 
 /**
  * Handle Executor Menu logic
  * @param {Object} sock - WhatsApp socket
  * @param {string} userJid - User's JID
  * @param {string} messageText - The message sent
- * @param {string} currentStep - The current state step
+ * @param {number} currentStep - The current state step (Integer)
  * @param {Object} formData - Any data being carried through the state
  */
 export async function handleExecutorMenu(sock, userJid, messageText, currentStep, formData) {
@@ -16,12 +17,12 @@ export async function handleExecutorMenu(sock, userJid, messageText, currentStep
 
     try {
         switch (currentStep) {
-            case 'executor_menu_main':
+            case MENU_STEPS.EXECUTOR_MAIN:
                 await sendExecutorMainMenu(sock, userJid);
-                await saveUserFormState(phone, 'executor_menu_wait_for_choice', formData);
+                await saveUserFormState(phone, MENU_STEPS.EXECUTOR_WAIT, formData);
                 break;
 
-            case 'executor_menu_wait_for_choice':
+            case MENU_STEPS.EXECUTOR_WAIT:
                 switch (normalizedMessage) {
                     case '1':
                         await sock.sendMessage(userJid, { text: '📊 *Fetch Data* functionality coming soon!' });

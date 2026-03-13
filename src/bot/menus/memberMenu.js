@@ -3,13 +3,14 @@ import { extractPhone } from '../../utils/helpers.js';
 import logger from '../../utils/logger.js';
 import { sendUpcomingEvents, sendNextEvent } from '../messageHandler.js';
 import { startTestReport } from '../testReportHandler.js';
+import { MENU_STEPS } from '../../utils/constants.js';
 
 /**
  * Handle Member Menu logic
  * @param {Object} sock - WhatsApp socket
  * @param {string} userJid - User's JID
  * @param {string} messageText - The message sent
- * @param {string} currentStep - The current state step
+ * @param {number} currentStep - The current state step (Integer)
  * @param {Object} formData - Any data being carried through the state
  */
 export async function handleMemberMenu(sock, userJid, messageText, currentStep, formData) {
@@ -18,12 +19,12 @@ export async function handleMemberMenu(sock, userJid, messageText, currentStep, 
 
     try {
         switch (currentStep) {
-            case 'member_menu_main':
+            case MENU_STEPS.MEMBER_MAIN:
                 await sendMemberMainMenu(sock, userJid);
-                await saveUserFormState(phone, 'member_menu_wait_for_choice', formData);
+                await saveUserFormState(phone, MENU_STEPS.MEMBER_WAIT, formData);
                 break;
 
-            case 'member_menu_wait_for_choice':
+            case MENU_STEPS.MEMBER_WAIT:
                 switch (normalizedMessage) {
                     case '1':
                         await sendUpcomingEvents(sock, userJid);
