@@ -50,7 +50,8 @@ export async function handleDmMenu(sock, msg, userJid, messageText, isUserAdmin)
     const formData = state.form_data || {};
 
     try {
-        if (currentStep === MENU_STEPS.EXECUTOR_MAIN || currentStep === MENU_STEPS.EXECUTOR_WAIT) {
+        if (currentStep >= MENU_STEPS.EXECUTOR_MAIN) {
+            // Steps 110 and above are Executor flow
             // Double-check admin privileges just in case
             if (!isUserAdmin) {
                 await clearUserFormState(phone);
