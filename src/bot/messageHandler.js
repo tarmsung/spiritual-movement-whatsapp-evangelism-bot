@@ -7,7 +7,7 @@ import { getUpcomingEvents, getNextEvent, isAdmin } from '../database/db.js';
 import { handleDmMenu } from './menus/dmMenuHandler.js';
 
 import { formatCalendarDate, extractPhone, getCleanPhone } from '../utils/helpers.js';
-import { store } from './connection.js';
+import { lidCache } from './connection.js';
 
 /**
  * Resolves a JID to a phone number using store and network lookups
@@ -27,12 +27,9 @@ export async function resolvePhone(jid, sock) {
     // 2. Try store contact lookup for @lid
     if (jid?.endsWith('@lid')) {
         logger.debug(`[AUTH] Attempting store resolution for LID: ${jid}`);
-        const contacts = store?.contacts || {};
-        for (const [phoneJid, contact] of Object.entries(contacts)) {
-            if (contact.lid === jid) {
-                logger.info(`[AUTH] Resolved LID ${jid} to phone via store: ${phoneJid}`);
-                return getCleanPhone(phoneJid);
-            }
+        if (lidCache[jid]) {
+            logger.info(`[AUTH] Resolved LID ${jid} to phone via cache: ${lidCache[jid]}`);
+            return getCleanPhone(lidCache[jid]);
         }
 
         // 3. Try fetching contact info directly from WhatsApp
@@ -41,6 +38,8 @@ export async function resolvePhone(jid, sock) {
             const [result] = await sock.onWhatsApp(jid);
             if (result?.exists && result?.jid) {
                 logger.info(`[AUTH] Resolved LID ${jid} to phone via network: ${result.jid}`);
+                // Save to our custom cache
+                lidCache[jid] = result.jid;
                 return getCleanPhone(result.jid);
             }
         } catch (e) {

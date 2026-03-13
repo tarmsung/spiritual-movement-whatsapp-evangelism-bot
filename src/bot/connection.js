@@ -1,39 +1,42 @@
 import makeWASocket, {
     DisconnectReason,
     useMultiFileAuthState,
-    fetchLatestBaileysVersion,
-    makeInMemoryStore
+    fetchLatestBaileysVersion
 } from '@whiskeysockets/baileys';
 import { Boom } from '@hapi/boom';
 import qrcode from 'qrcode-terminal';
 import logger from '../utils/logger.js';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
+import fs from 'fs';
 import { handleMessageDelete } from './messageDeleteHandler.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 const authFolder = join(__dirname, '../../auth_info_baileys');
-const storeFile = join(authFolder, 'store.json');
+const lidCacheFile = join(authFolder, 'lid_cache.json');
 
-// Initialize store
-export const store = makeInMemoryStore({});
+// Initialize simple LID cache
+export const lidCache = {};
 
-// Load store from file
+// Load cache from file
 try {
-    store.readFromFile(storeFile);
-    logger.info('Contact store loaded successfully');
+    if (fs.existsSync(lidCacheFile)) {
+        const data = fs.readFileSync(lidCacheFile, 'utf8');
+        Object.assign(lidCache, JSON.parse(data));
+        logger.info('LID cache loaded successfully');
+    }
 } catch (err) {
-    logger.warn('No contact store file found or error loading, starting fresh');
+    logger.warn('Error loading LID cache, starting fresh:', err.message);
 }
 
-// Periodically save store to file
+// Periodically save cache to file
 setInterval(() => {
     try {
-        store.writeToFile(storeFile);
+        fs.writeFileSync(lidCacheFile, JSON.stringify(lidCache, null, 2));
     } catch (err) {
-        logger.error('Failed to save contact store:', err);
+        logger.error('Failed to save LID cache:', err.message);
     }
 }, 10_000);
 
@@ -62,9 +65,6 @@ export async function startWhatsAppConnection(messageHandler) {
         logger: logger.child({ module: 'baileys' }),
         browser: ['Evangelism Bot', 'Chrome', '1.0.0']
     });
-
-    // Bind store to events
-    store.bind(sock.ev);
 
     // Handle credentials update
     sock.ev.on('creds.update', saveCreds);
