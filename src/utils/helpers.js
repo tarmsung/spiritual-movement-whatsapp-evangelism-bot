@@ -43,51 +43,42 @@ export function parseDate(input) {
 }
 
 /**
- * Get clean digits from a phone number or JID
- * Strips formatting and handles leading 0 to 263 conversion
- * @param {string} raw
- * @returns {string}
+ * Extract phone number from any WhatsApp JID.
+ * Works with @s.whatsapp.net, @c.us, @lid — all of them.
+ * The phone number is ALWAYS the part before the @.
+ * @param {string} jid
+ * @returns {string|null}
  */
-export function getCleanPhone(raw) {
-    if (!raw) return '';
-    
-    // If it's a JID, extract the phone part before stripping non-digits
-    // Handle formats like 263777123456:15@s.whatsapp.net
-    let base = raw;
-    if (base.includes('@')) base = base.split('@')[0];
-    if (base.includes(':')) base = base.split(':')[0];
+export function extractPhone(jid) {
+    if (!jid) return null;
+    const number = jid.split('@')[0];       // strip @s.whatsapp.net, @lid, etc.
+    return number.replace(/[^0-9]/g, '');   // strip any non-digit characters (e.g. device suffix :15)
+}
 
-    // Strip everything except digits
-    let cleaned = base.replace(/[^0-9]/g, '');
-    
-    // Handle leading zero (common in user input)
-    if (cleaned.startsWith('0')) {
-        cleaned = '263' + cleaned.substring(1);
-    }
-    return cleaned;
+/**
+ * Check if a JID belongs to an admin defined in ADMIN_NUMBERS env var.
+ * @param {string} jid - Raw JID from WhatsApp
+ * @returns {boolean}
+ */
+export function isAdminJid(jid) {
+    const phone = extractPhone(jid);
+    if (!phone) return false;
+    const admins = (process.env.ADMIN_NUMBERS || '').split(',').map(n => n.trim().replace(/[^0-9]/g, ''));
+    return admins.includes(phone);
 }
 
 /**
  * Normalize phone number to WhatsApp JID format
- * @param {string} phone
+ * @param {string} phone - Raw phone number string
  * @returns {string}
  */
 export function normalizePhone(phone) {
-    const cleaned = getCleanPhone(phone);
-    if (!cleaned) return '';
-    return cleaned + '@s.whatsapp.net';
+    if (!phone) return '';
+    const digits = String(phone).replace(/[^0-9]/g, '');
+    return digits + '@s.whatsapp.net';
 }
 
-/**
- * Extract phone number from WhatsApp JID
- * @param {string} jid
- * @returns {string}
- */
-export function extractPhone(jid) {
-    if (!jid) return '';
-    // Handle formats like 263772123456@s.whatsapp.net, @g.us, @lid
-    return jid.replace(/@s\.whatsapp\.net|@g\.us|@lid|@c\.us/, '').split(':')[0];
-}
+
 
 /**
  * Sleep for specified milliseconds

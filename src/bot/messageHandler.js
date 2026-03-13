@@ -1,34 +1,62 @@
-import config from '../config/config.js';
 import logger from '../utils/logger.js';
 import { handleGroupMessage } from './groupMessageHandler.js';
+import { extractPhone, isAdminJid } from '../utils/helpers.js';
 import { getUpcomingEvents, getNextEvent } from '../database/db.js';
 import { formatCalendarDate } from '../utils/helpers.js';
 
 /**
- * Main message handler
+ * Main message handler - entry point for all incoming messages
  * @param {Object} sock - WhatsApp socket
  * @param {Object} msg - Message object
  * @param {string} messageText - Message text content
  */
 export async function handleMessage(sock, msg, messageText) {
-    const userJid = msg.key.remoteJid;
-    const isGroup = userJid.endsWith('@g.us');
+    const remoteJid = msg.key.remoteJid;
+    const isGroup = remoteJid.endsWith('@g.us');
 
-    logger.info(`[DEBUG] handleMessage started. JID: ${userJid}, Text: ${messageText}`);
-
-    // Route group messages to group handler
+    // Route group messages to dedicated group handler
     if (isGroup) {
         await handleGroupMessage(sock, msg, messageText);
         return;
     }
 
-    // DM Functionality gracefully disabled
-    logger.info(`[DM] Ignoring DM from ${userJid} as DM functionality is currently disabled.`);
-    
-    // Optionally alert the user (commented out for complete silence)
-    // await sock.sendMessage(userJid, { text: "🚧 Direct Messaging with the bot is currently disabled for maintenance." });
+    // --- DM Handling ---
+    const senderJid = remoteJid; // for DMs, the remoteJid IS the sender
+    const phone = extractPhone(senderJid);
+    const adminAccess = isAdminJid(senderJid);
+
+    logger.info(`[DM] Message from ${phone} (admin: ${adminAccess}): ${messageText}`);
+
+    if (adminAccess) {
+        await handleAdminDm(sock, senderJid, messageText);
+    } else {
+        await handlePublicDm(sock, senderJid, messageText);
+    }
 }
 
+/**
+ * Handle DM from an admin user (listed in ADMIN_NUMBERS)
+ */
+async function handleAdminDm(sock, jid, messageText) {
+    const text = messageText.trim().toLowerCase();
+
+    // TODO: Add admin menu here
+    await sock.sendMessage(jid, {
+        text: `👋 Welcome Admin!\n\n🔧 *Admin Menu coming soon.*\n\nYour phone: ${extractPhone(jid)}`
+    });
+}
+
+/**
+ * Handle DM from a non-admin user
+ */
+async function handlePublicDm(sock, jid, messageText) {
+    const text = messageText.trim().toLowerCase();
+
+    // TODO: Add public member menu here
+    await sock.sendMessage(jid, {
+        text: `👋 Hello!\n\nThis bot is used for managing church evangelism reports.\n\nPlease use the group to submit your report. 🙏`
+    });
+}
 
 /**
  * Send upcoming events list for a specific month
@@ -55,7 +83,7 @@ export async function sendUpcomingEvents(sock, jid, monthArg = null) {
         msg += '────────────────────\n\n';
 
         for (const event of events) {
-            msg += `**${event.name}**\n`;
+            msg += `*${event.name}*\n`;
             msg += `🔸 ${formatCalendarDate(event.event_date)}\n\n`;
         }
 
@@ -81,7 +109,7 @@ export async function sendNextEvent(sock, jid) {
 
         let msg = '🗓️ *NEXT UPCOMING EVENT*\n';
         msg += '────────────────────\n\n';
-        msg += `**${event.name}**\n`;
+        msg += `*${event.name}*\n`;
         msg += `🔸 ${formatCalendarDate(event.event_date)}\n\n`;
         msg += '────────────────────\n';
         msg += '_God bless your attendance!_ 🙏';

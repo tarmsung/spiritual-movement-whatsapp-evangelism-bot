@@ -8,37 +8,11 @@ import qrcode from 'qrcode-terminal';
 import logger from '../utils/logger.js';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
-import fs from 'fs';
 import { handleMessageDelete } from './messageDeleteHandler.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-const authFolder = join(__dirname, '../../auth_info_baileys');
-const lidCacheFile = join(authFolder, 'lid_cache.json');
-
-// Initialize simple LID cache
-export const lidCache = {};
-
-// Load cache from file
-try {
-    if (fs.existsSync(lidCacheFile)) {
-        const data = fs.readFileSync(lidCacheFile, 'utf8');
-        Object.assign(lidCache, JSON.parse(data));
-        logger.info('LID cache loaded successfully');
-    }
-} catch (err) {
-    logger.warn('Error loading LID cache, starting fresh:', err.message);
-}
-
-// Periodically save cache to file
-setInterval(() => {
-    try {
-        fs.writeFileSync(lidCacheFile, JSON.stringify(lidCache, null, 2));
-    } catch (err) {
-        logger.error('Failed to save LID cache:', err.message);
-    }
-}, 10_000);
 
 let sock = null;
 
