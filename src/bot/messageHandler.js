@@ -16,9 +16,12 @@ import { store } from './connection.js';
  * @returns {Promise<string|null>} - Resolved phone number (digits) or null
  */
 export async function resolvePhone(jid, sock) {
+    logger.info(`[DEBUG] Entering resolvePhone for JID: ${jid}`);
     // 1. Already a phone JID
     if (jid?.endsWith('@s.whatsapp.net') || jid?.endsWith('@c.us')) {
-        return getCleanPhone(jid);
+        const clean = getCleanPhone(jid);
+        logger.info(`[DEBUG] Resolved natively as phone: ${clean}`);
+        return clean;
     }
 
     // 2. Try store contact lookup for @lid
@@ -45,6 +48,7 @@ export async function resolvePhone(jid, sock) {
         }
     }
 
+    logger.info(`[DEBUG] resolvePhone returning null for: ${jid}`);
     return null; // Unresolvable
 }
 
@@ -54,10 +58,12 @@ export async function resolvePhone(jid, sock) {
  * @returns {Promise<boolean>}
  */
 async function checkAuthorization(resolvedPhone) {
+    logger.info(`[DEBUG] Entering checkAuthorization for: ${resolvedPhone}`);
     if (!resolvedPhone) return false;
 
     // Normalize admin numbers from config (.env) for comparison
     const cleanAdminNumbers = config.adminNumbers.map(n => getCleanPhone(n));
+    logger.info(`[DEBUG] Cleaned admin numbers from env: ${JSON.stringify(cleanAdminNumbers)}`);
     
     // Check against Admin Numbers
     const isAuthorized = cleanAdminNumbers.includes(resolvedPhone);
@@ -79,6 +85,8 @@ export async function handleMessage(sock, msg, messageText) {
     const userJid = msg.key.remoteJid;
     const isGroup = userJid.endsWith('@g.us');
 
+    logger.info(`[DEBUG] handleMessage started. JID: ${userJid}, Text: ${messageText}`);
+
     // Route group messages to group handler
     if (isGroup) {
         await handleGroupMessage(sock, msg, messageText);
@@ -94,8 +102,10 @@ export async function handleMessage(sock, msg, messageText) {
         return;
     }
 
+    logger.info(`[DEBUG] Identity resolved to: ${resolvedPhone}. Checking authorization...`);
     const isAuthorized = await checkAuthorization(resolvedPhone);
 
+    logger.info(`[DEBUG] isAuthorized result: ${isAuthorized}`);
     if (!isAuthorized) {
         logger.warn(`[AUTH] Unauthorized DM attempt from ${resolvedPhone} (JID: ${userJid})`);
         await sock.sendMessage(userJid, { text: "🚫 You are not authorised." });
@@ -120,10 +130,14 @@ export async function handleMessage(sock, msg, messageText) {
     }
 
     // Determine admin status specifically for menu routing (admins get Executor menu)
+    logger.info(`[DEBUG] Checking database admin status for menu routing...`);
     const isUserAdmin = await isAdmin(resolvedPhone);
+    logger.info(`[DEBUG] Database isAdmin result: ${isUserAdmin}`);
 
     // Route EVERYTHING else in DMs to the modern DM menu system
+    logger.info(`[DEBUG] Routing to DM menu...`);
     await handleDmMenu(sock, msg, userJid, messageText, isUserAdmin);
+    logger.info(`[DEBUG] DM menu handled successfully.`);
 }
 
 /**
