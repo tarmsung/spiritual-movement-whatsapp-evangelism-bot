@@ -50,8 +50,16 @@ export function parseDate(input) {
  */
 export function getCleanPhone(raw) {
     if (!raw) return '';
+    
+    // If it's a JID, extract the phone part before stripping non-digits
+    // Handle formats like 263777123456:15@s.whatsapp.net
+    let base = raw;
+    if (base.includes('@')) base = base.split('@')[0];
+    if (base.includes(':')) base = base.split(':')[0];
+
     // Strip everything except digits
-    let cleaned = raw.replace(/[^0-9]/g, '');
+    let cleaned = base.replace(/[^0-9]/g, '');
+    
     // Handle leading zero (common in user input)
     if (cleaned.startsWith('0')) {
         cleaned = '263' + cleaned.substring(1);

@@ -35,7 +35,7 @@ export async function resolvePhone(jid, sock) {
         // 3. Try fetching contact info directly from WhatsApp
         try {
             logger.debug(`[AUTH] Attempting network resolution for LID: ${jid}`);
-            const [result] = await sock.onWhatsApp([jid]);
+            const [result] = await sock.onWhatsApp(jid);
             if (result?.exists && result?.jid) {
                 logger.info(`[AUTH] Resolved LID ${jid} to phone via network: ${result.jid}`);
                 return getCleanPhone(result.jid);
