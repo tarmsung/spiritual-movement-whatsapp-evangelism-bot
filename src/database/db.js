@@ -166,6 +166,76 @@ export async function removeAdmin(phone) {
   return { changes: 1 };
 }
 
+/**
+ * SUPERVISORS (Church Members) - CRUD Operations
+ */
+
+/**
+ * Check if a number is a supervisor
+ * @param {string} phone - User phone number
+ * @returns {Promise<boolean>}
+ */
+export async function isSupervisor(phone) {
+  const { data, error } = await supabase
+    .from('supervisors')
+    .select('id')
+    .eq('phone_number', phone)
+    .single();
+
+  if (error && error.code !== 'PGRST116') {
+    logger.error(`Error checking supervisor status for ${phone}:`, error.message);
+    return false;
+  }
+
+  return !!data;
+}
+
+/**
+ * Get all supervisors from the database
+ * @returns {Promise<Array>}
+ */
+export async function getAllSupervisors() {
+  const { data, error } = await supabase
+    .from('supervisors')
+    .select('*')
+    .order('name');
+
+  if (error) {
+    logger.error('Error fetching supervisors:', error.message);
+    return [];
+  }
+  return data;
+}
+
+/**
+ * Add a new supervisor
+ * @param {string} phone 
+ * @param {string} name 
+ * @param {string} branch 
+ */
+export async function addSupervisor(phone, name, branch) {
+  const { data, error } = await supabase
+    .from('supervisors')
+    .insert([{ phone_number: phone, name, branch }])
+    .select();
+
+  if (error) throw error;
+  return data[0];
+}
+
+/**
+ * Remove a supervisor
+ * @param {string} phone 
+ */
+export async function removeSupervisor(phone) {
+  const { error } = await supabase
+    .from('supervisors')
+    .delete()
+    .eq('phone_number', phone);
+
+  if (error) throw error;
+  return { changes: 1 };
+}
 
 /**
  * REPORTS - CRUD Operations

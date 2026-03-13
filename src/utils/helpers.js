@@ -66,7 +66,8 @@ export function normalizePhone(phone) {
  */
 export function extractPhone(jid) {
     if (!jid) return '';
-    return jid.split('@')[0].split(':')[0];
+    // Handle formats like 263772123456@s.whatsapp.net, @g.us, @lid
+    return jid.replace(/@s\.whatsapp\.net|@g\.us|@lid|@c\.us/, '').split(':')[0];
 }
 
 /**

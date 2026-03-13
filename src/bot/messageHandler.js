@@ -9,6 +9,16 @@ import { handleDmMenu } from './menus/dmMenuHandler.js';
 import { formatCalendarDate, extractPhone } from '../utils/helpers.js';
 
 /**
+ * Check if a user is authorized (Admin only for now)
+ * @param {string} senderNumber - Cleaned phone number
+ * @returns {Promise<boolean>}
+ */
+async function checkAuthorization(senderNumber) {
+    // Check against Admin Numbers from config (loaded from .env)
+    return config.adminNumbers.includes(senderNumber);
+}
+
+/**
  * Main message handler
  * @param {Object} sock - WhatsApp socket
  * @param {Object} msg - Message object
@@ -18,15 +28,25 @@ export async function handleMessage(sock, msg, messageText) {
     const userJid = msg.key.remoteJid;
     const isGroup = userJid.endsWith('@g.us');
 
-    // Route group messages to group handler
+    // Route group messages to group handler (it has its own auth check)
     if (isGroup) {
         await handleGroupMessage(sock, msg, messageText);
         return;
     }
 
+    const senderNumber = extractPhone(userJid);
+    const isAuthorized = await checkAuthorization(senderNumber);
+
+    if (!isAuthorized) {
+        logger.warn(`[AUTH] Unauthorized DM attempt from ${senderNumber}`);
+        // Only reply in DMs (redundant check here but safe)
+        await sock.sendMessage(userJid, { text: "🚫 You are not authorised." });
+        return;
+    }
+
     logger.info(`Message from ${userJid}: ${messageText}`);
 
-    // Check if user has an active test report session (this runs independently of the DM menu)
+    // Check if user has an active test report session
     if (hasActiveTestReport(userJid)) {
         await processTestReportResponse(sock, userJid, messageText);
         return;
@@ -41,9 +61,8 @@ export async function handleMessage(sock, msg, messageText) {
         return;
     }
 
-    // Determine admin status
-    const phone = extractPhone(userJid);
-    const isUserAdmin = await isAdmin(phone);
+    // Determine admin status specifically for menu routing (admins get Executor menu)
+    const isUserAdmin = await isAdmin(senderNumber);
 
     // Route EVERYTHING else in DMs to the modern DM menu system
     await handleDmMenu(sock, msg, userJid, messageText, isUserAdmin);
