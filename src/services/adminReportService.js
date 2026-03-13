@@ -18,14 +18,37 @@ export async function getStatesReport(assembly, startDate, endDate) {
         return `📊 *${assembly.name} States*\nPeriod: ${startDate} to ${endDate}\n\nNo data recorded for this period.`;
     }
 
-    // 1. Number of Evangelists (unique names)
-    // 2. Name and number of times preached by each Evangelist
-    const evMap = new Map();
+    // Junk/noise values to filter out
+    const JUNK = new Set(['not specified', 'unknown', 'n/a', 'none', '-', '', 'message', 'team', 'response', 'preacher']);
+
+    // Parse and count each person who preached
+    const evMap = new Map(); // normalized key -> { displayName, count }
+
     reports.forEach(r => {
         if (!r.preachers_team) return;
-        const names = r.preachers_team.split(/,|\s+and\s+/i).map(n => n.trim()).filter(Boolean);
-        names.forEach(name => {
-            evMap.set(name, (evMap.get(name) || 0) + 1);
+
+        // Split on commas, 'and' (word boundary), or newlines
+        const rawNames = r.preachers_team.split(/,|\s+and\s+|\n|\r/i);
+
+        rawNames.forEach(raw => {
+            // Strip trailing punctuation, extra whitespace
+            let name = raw.trim().replace(/[.,;:!?]+$/, '').trim();
+
+            // Skip short, empty, or junk entries
+            if (name.length < 2) return;
+            const lower = name.toLowerCase();
+            if (JUNK.has(lower)) return;
+            // Skip lines that look like "Message: ..." or "Response: ..."
+            if (/^(message|response|location|area|note|theme|team)\s*[:\-]/i.test(name)) return;
+
+            // Normalize key for deduplication: lowercase, collapse spaces
+            const key = lower.replace(/\s+/g, ' ');
+
+            if (evMap.has(key)) {
+                evMap.get(key).count++;
+            } else {
+                evMap.set(key, { displayName: name, count: 1 });
+            }
         });
     });
 
@@ -37,7 +60,7 @@ export async function getStatesReport(assembly, startDate, endDate) {
     // 4. Number of Sick prayed
     const totalHealed = reports.reduce((sum, r) => sum + (r.healed || 0), 0);
     
-    // 5. Number of opportunities created for a cluster (total report entries)
+    // 5. Number of opportunities = number of reports in that month for this cluster
     const totalOpportunities = reports.length;
     
     // 6. Number of different locations preached
@@ -52,7 +75,7 @@ export async function getStatesReport(assembly, startDate, endDate) {
     msg += `👥 *Total Evangelists:* ${numEvangelists}\n`;
     msg += `✨ *Total Saved:* ${totalSaved}\n`;
     msg += `🙏 *Sick Prayed For:* ${totalHealed}\n`;
-    msg += `🛤️ *Opportunities:* ${totalOpportunities}\n`;
+    msg += `🛤️ *Opportunities (Reports):* ${totalOpportunities}\n`;
     msg += `📍 *Different Locations:* ${numLocations}\n\n`;
     
     msg += `📋 *EVANGELIST ACTIVITY*\n`;
@@ -60,9 +83,9 @@ export async function getStatesReport(assembly, startDate, endDate) {
     msg += `────────────────────\n`;
     
     // Sort by frequency descending
-    const sortedEv = Array.from(evMap.entries()).sort((a, b) => b[1] - a[1]);
-    sortedEv.forEach(([name, count]) => {
-        msg += `${name}: ${count}\n`;
+    const sortedEv = Array.from(evMap.values()).sort((a, b) => b.count - a.count);
+    sortedEv.forEach(({ displayName, count }) => {
+        msg += `${displayName}: ${count}\n`;
     });
     
     msg += `────────────────────\n`;
