@@ -40,9 +40,35 @@ export async function handleMessage(sock, msg, messageText) {
 async function handleAdminDm(sock, jid, messageText) {
     const text = messageText.trim().toLowerCase();
 
-    // TODO: Add admin menu here
+    // Wake word to open admin menu
+    if (text === 'admin') {
+        await sock.sendMessage(jid, {
+            text: `🛡️ *ADMIN MENU*\n\nPlease choose an option:\n\n1️⃣ Fetch Data\n2️⃣ Add Member\n3️⃣ Disable Member\n4️⃣ View Cluster\n\n_Reply with a number (1-4)_`
+        });
+        return;
+    }
+
+    // Handle menu choices
+    if (text === '1') {
+        await sock.sendMessage(jid, { text: '🔄 *Fetch Data* — Coming soon...' });
+        return;
+    }
+    if (text === '2') {
+        await sock.sendMessage(jid, { text: '➕ *Add Member* — Coming soon...' });
+        return;
+    }
+    if (text === '3') {
+        await sock.sendMessage(jid, { text: '🚫 *Disable Member* — Coming soon...' });
+        return;
+    }
+    if (text === '4') {
+        await sock.sendMessage(jid, { text: '🏘️ *View Cluster* — Coming soon...' });
+        return;
+    }
+
+    // Unrecognized input — prompt them to use the wake word
     await sock.sendMessage(jid, {
-        text: `👋 Welcome Admin!\n\n🔧 *Admin Menu coming soon.*\n\nYour phone: ${extractPhone(jid)}`
+        text: `Type *Admin* to open the admin menu.`
     });
 }
 
