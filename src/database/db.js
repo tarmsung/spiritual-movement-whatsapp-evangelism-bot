@@ -1,7 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import config from '../config/config.js';
 import logger from '../utils/logger.js';
-import { getCleanPhone } from '../utils/helpers.js';
+import { extractPhone } from '../utils/helpers.js';
 
 // Initialize Supabase client
 const supabase = createClient(config.supabaseUrl, config.supabaseKey);
@@ -103,10 +103,10 @@ export async function getAssemblyByGroupJid(groupJid) {
  * @returns {Promise<boolean>}
  */
 export async function isAdmin(phone) {
-  const cleanPhone = getCleanPhone(phone);
+  const cleanPhone = extractPhone(phone);
   
   // Check config first (faster)
-  if (config.adminNumbers.map(n => getCleanPhone(n)).includes(cleanPhone)) {
+  if (config.adminNumbers.map(n => extractPhone(n)).includes(cleanPhone)) {
     return true;
   }
 
@@ -179,7 +179,7 @@ export async function removeAdmin(phone) {
  * @returns {Promise<boolean>}
  */
 export async function isSupervisor(phone) {
-  const cleanPhone = getCleanPhone(phone);
+  const cleanPhone = extractPhone(phone);
   const { data, error } = await supabase
     .from('supervisors')
     .select('id')
