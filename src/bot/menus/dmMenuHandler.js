@@ -46,7 +46,7 @@ export async function handleDmMenu(sock, msg, userJid, messageText, isUserAdmin)
     }
 
     // Route to appropriate handler based on current state step
-    const currentStep = state.current_form_step;
+    const currentStep = Number(state.current_form_step);
     const formData = state.form_data || {};
 
     try {
