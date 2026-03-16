@@ -45,22 +45,30 @@ export async function handleMessage(sock, msg, messageText) {
     }
 
     const phone = extractPhone(senderJid);
-
-    // --- Authorization: env takes priority, Supabase admins table is the fallback ---
+    
+    // --- Authorization: Parallelize checks for performance ---
     let adminAccess = false;
+    let supervisorAccess = false;
+    
     try {
-        adminAccess = await isAdmin(phone); // checks ADMIN_NUMBERS env first, then DB
+        const [isAdminResult, isSupervisorResult] = await Promise.all([
+            isAdmin(phone),
+            isSupervisor(phone)
+        ]);
+        adminAccess = isAdminResult;
+        supervisorAccess = isSupervisorResult;
     } catch (err) {
-        logger.warn(`[DM] isAdmin check failed for ${phone}, defaulting to false:`, err.message);
+        logger.warn(`[DM] Authorization check failed for ${phone}:`, err.message);
     }
-
-    logger.info(`[DM] Message from ${phone} (admin: ${adminAccess}): ${messageText}`);
-
+    
+    logger.info(`[DM] Message from ${phone} (admin: ${adminAccess}, supervisor: ${supervisorAccess}): ${messageText}`);
+    
     if (adminAccess || supervisorAccess) {
-        await handleDmMenu(sock, msg, senderJid, messageText, true);
+        // Pass the admin flag to the menu handler
+        await handleDmMenu(sock, msg, senderJid, messageText, adminAccess);
         return;
     }
-
+    
     await handlePublicDm(sock, senderJid, messageText);
 }
 
