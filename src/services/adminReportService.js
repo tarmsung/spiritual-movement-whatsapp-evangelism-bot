@@ -27,8 +27,8 @@ export async function getStatesReport(assembly, startDate, endDate) {
     reports.forEach(r => {
         if (!r.preachers_team) return;
 
-        // Split on commas, 'and' (word boundary), or newlines
-        const rawNames = r.preachers_team.split(/,|\s+and\s+|\n|\r/i);
+        // Split on commas, 'and', '&', '/', '+', ';' or newlines
+        const rawNames = r.preachers_team.split(/,|\s+and\s+|&|\/|\+|;|\n|\r/i);
 
         rawNames.forEach(raw => {
             // Strip trailing punctuation, extra whitespace
@@ -41,8 +41,8 @@ export async function getStatesReport(assembly, startDate, endDate) {
             // Skip lines that look like "Message: ..." or "Response: ..."
             if (/^(message|response|location|area|note|theme|team)\s*[:\-]/i.test(name)) return;
 
-            // Normalize key for deduplication: lowercase, collapse spaces
-            const key = lower.replace(/\s+/g, ' ');
+            // Normalize key for deduplication: lowercase, collapse spaces, remove trailing periods/punctuation
+            const key = lower.replace(/\s+/g, ' ').replace(/[.,;:!?]+$/, '').trim();
 
             if (evMap.has(key)) {
                 evMap.get(key).count++;
