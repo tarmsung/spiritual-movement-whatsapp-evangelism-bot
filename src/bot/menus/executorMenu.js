@@ -196,29 +196,20 @@ function getRecentMonths(count) {
     const now = new Date();
     
     for (let i = 0; i < count; i++) {
-        // We calculate the range for i months ago
-        const date = new Date(now.getFullYear(), now.getMonth() - i, 15);
+        // Calculate the target month and year
+        let year = now.getFullYear();
+        let month = now.getMonth() - i;
         
-        // Use 10th-9th cycle matching the bot's standard
-        const isPast10th = date.getDate() >= 10;
-        let endYear = date.getFullYear();
-        let endMonth = isPast10th ? date.getMonth() : date.getMonth() - 1;
-        
-        if (endMonth < 0) {
-            endMonth = 11;
-            endYear--;
+        // Handle negative month values for previous years
+        while (month < 0) {
+            month += 12;
+            year--;
         }
         
-        // Start: 10th of previous month
-        let startYear = endYear;
-        let startMonth = endMonth - 1;
-        if (startMonth < 0) {
-            startMonth = 11;
-            startYear--;
-        }
-        
-        const startDate = new Date(startYear, startMonth, 10);
-        const endDate = new Date(endYear, endMonth, 9);
+        // Start of the month: 1st
+        const startDate = new Date(year, month, 1);
+        // End of the month: 0th day of the NEXT month gives the last day of THIS month
+        const endDate = new Date(year, month + 1, 0);
         
         const label = endDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
         
@@ -226,8 +217,8 @@ function getRecentMonths(count) {
         
         months.push({
             label: label,
-            start: formatStr(startYear, startMonth, 10),
-            end: formatStr(endYear, endMonth, 9)
+            start: formatStr(year, month, 1),
+            end: formatStr(year, month, endDate.getDate())
         });
     }
     
