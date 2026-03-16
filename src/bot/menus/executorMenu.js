@@ -222,10 +222,12 @@ function getRecentMonths(count) {
         
         const label = endDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
         
+        const formatStr = (y, m, d) => `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+        
         months.push({
             label: label,
-            start: startDate.toISOString().split('T')[0],
-            end: endDate.toISOString().split('T')[0]
+            start: formatStr(startYear, startMonth, 10),
+            end: formatStr(endYear, endMonth, 9)
         });
     }
     
