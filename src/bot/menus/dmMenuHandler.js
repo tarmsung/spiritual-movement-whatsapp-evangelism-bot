@@ -32,14 +32,12 @@ export async function handleDmMenu(sock, msg, userJid, messageText, isUserAdmin)
         if (normalizedMessage === 'admin') {
             if (isUserAdmin) {
                 // Initialize Executor menu state
-                await saveUserFormState(phone, MENU_STEPS.EXECUTOR_MAIN, {});
                 await handleExecutorMenu(sock, userJid, messageText, MENU_STEPS.EXECUTOR_MAIN, {});
             } else {
                 await sock.sendMessage(userJid, { text: '🚫 Access Denied: You do not have Executor privileges.' });
             }
         } else {
             // Default to Member menu
-            await saveUserFormState(phone, MENU_STEPS.MEMBER_MAIN, {});
             await handleMemberMenu(sock, userJid, messageText, MENU_STEPS.MEMBER_MAIN, {});
         }
         return;

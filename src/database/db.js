@@ -97,6 +97,10 @@ export async function getAssemblyByGroupJid(groupJid) {
  * ADMINS - CRUD Operations
  */
 
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+const adminCache = new Map();
+const supervisorCache = new Map();
+
 /**
  * Check if a number is an admin (either in config or in DB)
  * @param {string} phone - User phone number
@@ -105,13 +109,21 @@ export async function getAssemblyByGroupJid(groupJid) {
 export async function isAdmin(phone) {
   const cleanPhone = extractPhone(phone);
   
+  // Check cache first
+  const cached = adminCache.get(cleanPhone);
+  if (cached && (Date.now() - cached.timestamp < CACHE_TTL)) {
+    return cached.isAdmin;
+  }
+
   // Check config first (faster) — covers both real phone numbers and LID numbers
   if (config.adminNumbers.map(n => extractPhone(n)).includes(cleanPhone)) {
+    adminCache.set(cleanPhone, { isAdmin: true, timestamp: Date.now() });
     return true;
   }
 
   // Check ADMIN_LIDS env var (LIDs that couldn't be auto-resolved to phone numbers)
   if (config.adminLids.includes(cleanPhone)) {
+    adminCache.set(cleanPhone, { isAdmin: true, timestamp: Date.now() });
     return true;
   }
 
@@ -127,7 +139,9 @@ export async function isAdmin(phone) {
     return false;
   }
 
-  return !!data;
+  const isUserAdmin = !!data;
+  adminCache.set(cleanPhone, { isAdmin: isUserAdmin, timestamp: Date.now() });
+  return isUserAdmin;
 }
 
 /**
@@ -185,6 +199,13 @@ export async function removeAdmin(phone) {
  */
 export async function isSupervisor(phone) {
   const cleanPhone = extractPhone(phone);
+
+  // Check cache first
+  const cached = supervisorCache.get(cleanPhone);
+  if (cached && (Date.now() - cached.timestamp < CACHE_TTL)) {
+    return cached.isSupervisor;
+  }
+
   const { data, error } = await supabase
     .from('supervisors')
     .select('id')
@@ -196,7 +217,9 @@ export async function isSupervisor(phone) {
     return false;
   }
 
-  return !!data;
+  const isUserSupervisor = !!data;
+  supervisorCache.set(cleanPhone, { isSupervisor: isUserSupervisor, timestamp: Date.now() });
+  return isUserSupervisor;
 }
 
 /**
