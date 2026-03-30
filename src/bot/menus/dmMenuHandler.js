@@ -31,17 +31,22 @@ export async function handleDmMenu(sock, msg, userJid, messageText, isUserAdmin)
     if (!state) {
         if (normalizedMessage === 'admin') {
             if (isUserAdmin) {
-                // Initialize Executor menu state
                 await handleExecutorMenu(sock, userJid, messageText, MENU_STEPS.EXECUTOR_MAIN, {});
             } else {
                 await sock.sendMessage(userJid, { text: '🚫 Access Denied: You do not have Executor privileges.' });
             }
-        } else {
-            // Default to Member menu
+        } else if (normalizedMessage === 'menu') {
+            // Anyone can open the member menu
             await handleMemberMenu(sock, userJid, messageText, MENU_STEPS.MEMBER_MAIN, {});
+        } else {
+            // Prompt them to type 'menu' or 'admin'
+            await sock.sendMessage(userJid, {
+                text: `👋 *Welcome!*\n\nType *Menu* to open the Member Menu.\n${isUserAdmin ? '\nType *Admin* to open the Executor Menu.' : ''}`
+            });
         }
         return;
     }
+
 
     // Route to appropriate handler based on current state step
     const currentStep = Number(state.current_form_step);

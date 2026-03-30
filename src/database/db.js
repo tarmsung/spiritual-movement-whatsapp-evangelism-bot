@@ -694,5 +694,131 @@ export async function getEventsInDays(daysFromNow) {
   return data;
 }
 
+/**
+ * MEMBERS - ID Lookup
+ */
+
+/**
+ * Look up multiple members by their member_id in a single query.
+ * Returns a Map of member_id (number) → full_name (string).
+ * Any ID not in the database will simply be absent from the Map.
+ *
+ * @param {number[]} ids - Array of integer member IDs
+ * @returns {Promise<Map<number, string>>} Map of id → full_name
+ */
+export async function getMembersByIds(ids) {
+  if (!ids || ids.length === 0) return new Map();
+
+  const { data, error } = await supabase
+    .from('members')
+    .select('member_id, full_name')
+    .in('member_id', ids)
+    .eq('is_active', true); // Only resolve active members
+
+  if (error) {
+    logger.error('[DB] getMembersByIds error:', error.message);
+    throw error;
+  }
+
+  const map = new Map();
+  (data || []).forEach(row => map.set(row.member_id, row.full_name));
+  return map;
+}
+
+/**
+ * Get a single member by their member_id (active or not)
+ * @param {number} id
+ * @returns {Promise<Object|null>}
+ */
+export async function getMemberById(id) {
+  const { data, error } = await supabase
+    .from('members')
+    .select('*')
+    .eq('member_id', id)
+    .single();
+
+  if (error && error.code !== 'PGRST116') {
+    logger.error('[DB] getMemberById error:', error.message);
+    throw error;
+  }
+  return data || null;
+}
+
+/**
+ * Get the next suggested member ID (max existing + 1)
+ * @returns {Promise<number>}
+ */
+export async function getNextMemberId() {
+  const { data, error } = await supabase
+    .from('members')
+    .select('member_id')
+    .order('member_id', { ascending: false })
+    .limit(1);
+
+  if (error) {
+    logger.error('[DB] getNextMemberId error:', error.message);
+    throw error;
+  }
+  const maxId = data && data.length > 0 ? data[0].member_id : 1125;
+  return maxId + 1;
+}
+
+/**
+ * Add a new member to the members table
+ * @param {Object} details - { member_id, first_name, surname, gender, cluster }
+ * @returns {Promise<Object>}
+ */
+export async function addMember({ member_id, first_name, surname, gender, cluster }) {
+  const full_name = `${first_name} ${surname}`;
+  const { data, error } = await supabase
+    .from('members')
+    .insert([{ member_id, first_name, surname, full_name, gender, cluster, is_active: true }])
+    .select();
+
+  if (error) {
+    logger.error('[DB] addMember error:', error.message);
+    throw error;
+  }
+  return data[0];
+}
+
+/**
+ * Soft-disable a member (sets is_active = false)
+ * @param {number} id - The member_id to disable
+ * @returns {Promise<void>}
+ */
+export async function disableMember(id) {
+  const { error } = await supabase
+    .from('members')
+    .update({ is_active: false })
+    .eq('member_id', id);
+
+  if (error) {
+    logger.error('[DB] disableMember error:', error.message);
+    throw error;
+  }
+}
+
+/**
+ * Get all active members in a cluster, ordered by surname
+ * @param {string} clusterName
+ * @returns {Promise<Array>}
+ */
+export async function getMembersByCluster(clusterName) {
+  const { data, error } = await supabase
+    .from('members')
+    .select('member_id, full_name, gender')
+    .eq('cluster', clusterName)
+    .eq('is_active', true)
+    .order('surname', { ascending: true });
+
+  if (error) {
+    logger.error('[DB] getMembersByCluster error:', error.message);
+    throw error;
+  }
+  return data || [];
+}
+
 export default supabase;
+
 

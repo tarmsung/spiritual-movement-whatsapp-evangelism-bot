@@ -62,13 +62,32 @@ export async function handleMessage(sock, msg, messageText) {
     }
     
     logger.info(`[DM] Message from ${phone} (admin: ${adminAccess}, supervisor: ${supervisorAccess}): ${messageText}`);
-    
+
+    const normalizedText = messageText.trim().toLowerCase();
+
+    // Admins/supervisors always go through the DM menu handler
     if (adminAccess || supervisorAccess) {
-        // Pass the admin flag to the menu handler
         await handleDmMenu(sock, msg, senderJid, messageText, adminAccess);
         return;
     }
-    
+
+    // Any user can open the member menu by typing "menu"
+    if (normalizedText === 'menu') {
+        await handleDmMenu(sock, msg, senderJid, messageText, false);
+        return;
+    }
+
+    // Check if the user has an active session (mid-menu flow) and route them back
+    // This is handled inside handleDmMenu via getUserFormState, so just route them in
+    try {
+        const { getUserFormState } = await import('../database/db.js');
+        const state = await getUserFormState(phone);
+        if (state) {
+            await handleDmMenu(sock, msg, senderJid, messageText, false);
+            return;
+        }
+    } catch (_) { /* fall through */ }
+
     await handlePublicDm(sock, senderJid, messageText);
 }
 
@@ -87,14 +106,11 @@ async function handleSupervisorDm(sock, jid, messageText) {
 }
 
 /**
- * Handle DM from a non-admin user
+ * Handle DM from a non-admin, non-menu user — prompt them to type "Menu"
  */
 async function handlePublicDm(sock, jid, messageText) {
-    const text = messageText.trim().toLowerCase();
-
-    // TODO: Add public member menu here
     await sock.sendMessage(jid, {
-        text: `👋 Hello!\n\nThis bot is used for managing church evangelism reports.\n\nPlease use the group to submit your report. 🙏`
+        text: `👋 *Hello!*\n\nWelcome to *Spiritual Movement Church* 🙏\n\nType *Menu* to see what's available.`
     });
 }
 
