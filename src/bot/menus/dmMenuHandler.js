@@ -17,35 +17,36 @@ export async function handleDmMenu(sock, msg, userJid, messageText, isUserAdmin)
     const phone = extractPhone(userJid);
     const normalizedMessage = messageText.trim().toLowerCase();
 
-    // Check if the user wants to cancel out of any menu
-    if (normalizedMessage === 'cancel' || normalizedMessage === 'exit') {
+    // 1. Check for global session reset / entry points FIRST
+    // This allows users to type "Menu" or "Admin" at ANY stage to reset.
+    if (normalizedMessage === 'menu') {
         await clearUserFormState(phone);
-        await sock.sendMessage(userJid, { text: '❌ Menu exited. Send any message to open the menu again, or type *Admin* if you are an Executor.' });
+        await handleMemberMenu(sock, userJid, messageText, MENU_STEPS.MEMBER_MAIN, {});
         return;
     }
 
-    // Try to get existing state
-    let state = await getUserFormState(phone);
-
-    // If no state, we initialize based on what they typed
-    if (!state) {
-        if (normalizedMessage === 'admin') {
-            if (isUserAdmin) {
-                await handleExecutorMenu(sock, userJid, messageText, MENU_STEPS.EXECUTOR_MAIN, {});
-            } else {
-                await sock.sendMessage(userJid, { text: '🚫 Access Denied: You do not have Executor privileges.' });
-            }
-        } else if (normalizedMessage === 'menu') {
-            // Anyone can open the member menu
-            await handleMemberMenu(sock, userJid, messageText, MENU_STEPS.MEMBER_MAIN, {});
+    if (normalizedMessage === 'admin') {
+        if (isUserAdmin) {
+            await clearUserFormState(phone);
+            await handleExecutorMenu(sock, userJid, messageText, MENU_STEPS.EXECUTOR_MAIN, {});
         } else {
-            // Prompt them to type 'menu' or 'admin'
-            await sock.sendMessage(userJid, {
-                text: `👋 *Welcome!*\n\nType *Menu* to open the Member Menu.\n${isUserAdmin ? '\nType *Admin* to open the Executor Menu.' : ''}`
-            });
+            await sock.sendMessage(userJid, { text: '🚫 Access Denied: You do not have Executor privileges.' });
         }
         return;
     }
+
+    // 2. Try to get existing state
+    const state = await getUserFormState(phone);
+
+    // 3. If no state and no entry keyword was used, prompt them correctly
+    if (!state) {
+        await sock.sendMessage(userJid, {
+            text: `👋 *Welcome!*\n\nType *Menu* to open the Member Menu.\n${isUserAdmin ? '\nType *Admin* to open the Executor Menu.' : ''}\n\n_Type "cancel" at any time to exit._`
+        });
+        return;
+    }
+
+
 
 
     // Route to appropriate handler based on current state step

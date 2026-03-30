@@ -13,6 +13,8 @@ import logger from '../../utils/logger.js';
 import { MENU_STEPS } from '../../utils/constants.js';
 import { getStatesReport, getReportsSummary } from '../../services/adminReportService.js';
 
+const ADMIN_NAV_FOOTER = '\n\n────────────────────\n_Type *Admin* to go back or *Cancel* to exit._';
+
 /**
  * Handle Executor Menu logic
  */
@@ -108,6 +110,7 @@ export async function handleExecutorMenu(sock, userJid, messageText, currentStep
                     report = await getReportsSummary(assemblyObj, selectedMonth.start, selectedMonth.end);
                 }
                 await sock.sendMessage(userJid, { text: report });
+                await sock.sendMessage(userJid, { text: ADMIN_NAV_FOOTER });
                 await clearUserFormState(phone);
                 break;
             }
@@ -205,16 +208,15 @@ export async function handleExecutorMenu(sock, userJid, messageText, currentStep
                         gender:     formData.gender,
                         cluster:    formData.cluster
                     });
-                    await clearUserFormState(phone);
                     await sock.sendMessage(userJid, {
                         text: `✅ *Member Added Successfully!*\n\n` +
                               `🔢 ID: *${formData.member_id}*\n` +
                               `👤 Name: *${formData.first_name} ${formData.surname}*\n\n` +
-                              `They can now use ID *${formData.member_id}* when entering the team field in reports.`
+                              `They can now use ID *${formData.member_id}* when entering the team field in reports.${ADMIN_NAV_FOOTER}`
                     });
                 } else if (normalizedMessage === 'no' || normalizedMessage === 'n') {
                     await clearUserFormState(phone);
-                    await sock.sendMessage(userJid, { text: '❌ Cancelled. No member was added.' });
+                    await sock.sendMessage(userJid, { text: `❌ Cancelled. No member was added.${ADMIN_NAV_FOOTER}` });
                 } else {
                     await sock.sendMessage(userJid, { text: '❌ Please reply with *yes* or *no*.' });
                 }
@@ -255,15 +257,14 @@ export async function handleExecutorMenu(sock, userJid, messageText, currentStep
             case MENU_STEPS.EXECUTOR_DISABLE_MEMBER_CONFIRM: {
                 if (normalizedMessage === 'yes' || normalizedMessage === 'y') {
                     await disableMember(formData.disable_id);
-                    await clearUserFormState(phone);
                     await sock.sendMessage(userJid, {
                         text: `✅ *Member Disabled*\n\n` +
                               `👤 *${formData.disable_name}* (ID: ${formData.disable_id}) has been disabled.\n\n` +
-                              `Their ID will no longer be accepted in evangelism reports.`
+                              `Their ID will no longer be accepted in evangelism reports.${ADMIN_NAV_FOOTER}`
                     });
                 } else if (normalizedMessage === 'no' || normalizedMessage === 'n') {
                     await clearUserFormState(phone);
-                    await sock.sendMessage(userJid, { text: '❌ Cancelled. No changes were made.' });
+                    await sock.sendMessage(userJid, { text: `❌ Cancelled. No changes were made.${ADMIN_NAV_FOOTER}` });
                 } else {
                     await sock.sendMessage(userJid, { text: '❌ Please reply with *yes* or *no*.' });
                 }
@@ -282,8 +283,8 @@ export async function handleExecutorMenu(sock, userJid, messageText, currentStep
                 const members = await getMembersByCluster(cluster);
 
                 if (members.length === 0) {
+                    await sock.sendMessage(userJid, { text: `ℹ️ No active members found in *${cluster}*.${ADMIN_NAV_FOOTER}` });
                     await clearUserFormState(phone);
-                    await sock.sendMessage(userJid, { text: `ℹ️ No active members found in *${cluster}*.` });
                     return;
                 }
 
@@ -297,8 +298,8 @@ export async function handleExecutorMenu(sock, userJid, messageText, currentStep
 
                 listText += `\n_${members.length} active member(s)_`;
 
+                await sock.sendMessage(userJid, { text: listText + ADMIN_NAV_FOOTER });
                 await clearUserFormState(phone);
-                await sock.sendMessage(userJid, { text: listText });
                 break;
             }
 

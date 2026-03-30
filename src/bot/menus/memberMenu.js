@@ -4,6 +4,8 @@ import logger from '../../utils/logger.js';
 import { sendUpcomingEvents, sendNextEvent } from '../messageHandler.js';
 import { MENU_STEPS } from '../../utils/constants.js';
 
+const NAV_FOOTER = '\n\n────────────────────\n_Type *Menu* to go back or *Cancel* to exit._';
+
 /**
  * Handle Member Menu logic.
  * Triggered when any user DMs the bot with "Menu".
@@ -40,38 +42,40 @@ export async function handleMemberMenu(sock, userJid, messageText, currentStep, 
 
                     case '1': // 🗓️ Events
                         await sendUpcomingEvents(sock, userJid, getCurrentMonth());
+                        await sock.sendMessage(userJid, { text: NAV_FOOTER });
                         await clearUserFormState(phone);
                         break;
 
                     case '2': // 📥 Download Evangelism Reports
                         await sock.sendMessage(userJid, {
-                            text: `📥 *Download Evangelism Reports*\n\n_This feature is coming soon!_\n\nYou will be able to download monthly evangelism reports directly from this menu.\n\nType *Menu* to go back.`
+                            text: `📥 *Download Evangelism Reports*\n\n_This feature is coming soon!_\n\nYou will be able to download monthly evangelism reports directly from this menu.${NAV_FOOTER}`
                         });
                         await clearUserFormState(phone);
                         break;
 
                     case '3': // 📅 Calendar
                         await sendNextEvent(sock, userJid);
+                        await sock.sendMessage(userJid, { text: NAV_FOOTER });
                         await clearUserFormState(phone);
                         break;
 
                     case '4': // 📰 Newspaper Articles
                         await sock.sendMessage(userJid, {
-                            text: `📰 *Newspaper Articles*\n\n_This feature is coming soon!_\n\nYou will be able to read the latest church newsletter and bulletin articles here.\n\nType *Menu* to go back.`
+                            text: `📰 *Newspaper Articles*\n\n_This feature is coming soon!_\n\nYou will be able to read the latest church newsletter and bulletin articles here.${NAV_FOOTER}`
                         });
                         await clearUserFormState(phone);
                         break;
 
                     case '5': // 📚 Library
                         await sock.sendMessage(userJid, {
-                            text: `📚 *Library*\n\n_This feature is coming soon!_\n\nYou will be able to browse and download sermons, devotionals, and other resources.\n\nType *Menu* to go back.`
+                            text: `📚 *Library*\n\n_This feature is coming soon!_\n\nYou will be able to browse and download sermons, devotionals, and other resources.${NAV_FOOTER}`
                         });
                         await clearUserFormState(phone);
                         break;
 
                     case '6': // 💰 Make Payment
                         await sock.sendMessage(userJid, {
-                            text: `💰 *Make Payment*\n\n_This feature is coming soon!_\n\nYou will be able to make church contributions and tithes directly through this menu.\n\nType *Menu* to go back.`
+                            text: `💰 *Make Payment*\n\n_This feature is coming soon!_\n\nYou will be able to make church contributions and tithes directly through this menu.${NAV_FOOTER}`
                         });
                         await clearUserFormState(phone);
                         break;
