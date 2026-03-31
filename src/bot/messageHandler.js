@@ -3,7 +3,7 @@ import { handleGroupMessage } from './groupMessageHandler.js';
 import { extractPhone } from '../utils/helpers.js';
 import { getUpcomingEvents, getNextEvent, isAdmin, isSupervisor } from '../database/db.js';
 import { formatCalendarDate } from '../utils/helpers.js';
-import { lidToPhone } from './connection.js';
+import { lidToPhone, isSavedContact } from './connection.js';
 import { handleDmMenu } from './menus/dmMenuHandler.js';
 
 
@@ -62,6 +62,22 @@ export async function handleMessage(sock, msg, messageText) {
     }
     
     logger.info(`[DM] Message from ${phone} (admin: ${adminAccess}, supervisor: ${supervisorAccess}): ${messageText}`);
+
+    // --- Saved Contact Validation ---
+    if (!adminAccess && !supervisorAccess) {
+        if (!isSavedContact(senderJid)) {
+            logger.info(`[DM] Ignoring message from unsaved, non-admin contact: ${phone}`);
+            try {
+                // Send a brief decline message
+                await sock.sendMessage(senderJid, {
+                    text: `👋 *Hello!*\n\nSorry, I am currently configured to only interact with saved contacts. Have a blessed day! 🙏`
+                });
+            } catch (err) {
+               logger.error(`[DM] Failed to send decline message to ${phone}: ${err.message}`);
+            }
+            return;
+        }
+    }
 
     const normalizedText = messageText.trim().toLowerCase();
 

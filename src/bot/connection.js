@@ -16,9 +16,12 @@ const __dirname = dirname(__filename);
 
 const authFolder = join(__dirname, '../../auth_info_baileys');
 const lidCacheFile = join(authFolder, 'lid_cache.json');
+const savedContactsFile = join(authFolder, 'saved_contacts.json');
 
 // Lightweight LID → phone JID mapping (persisted to file)
 export const lidToPhone = {};
+// Saved contacts cache (persisted to file)
+export const savedContacts = {};
 
 // Load from file on startup
 try {
@@ -30,8 +33,32 @@ try {
     logger.warn('LID cache load failed, starting fresh:', e.message);
 }
 
+try {
+    if (fs.existsSync(savedContactsFile)) {
+        Object.assign(savedContacts, JSON.parse(fs.readFileSync(savedContactsFile, 'utf8')));
+        logger.info(`Saved contacts cache loaded (${Object.keys(savedContacts).length} entries)`);
+    }
+} catch (e) {
+    logger.warn('Saved contacts cache load failed, starting fresh:', e.message);
+}
+
 function saveLidCache() {
     try { fs.writeFileSync(lidCacheFile, JSON.stringify(lidToPhone, null, 2)); } catch (e) { /* ignore */ }
+}
+
+function saveSavedContacts() {
+    try { fs.writeFileSync(savedContactsFile, JSON.stringify(savedContacts, null, 2)); } catch (e) { /* ignore */ }
+}
+
+/**
+ * Check if a JID is saved in our contact list
+ * @param {string} jid 
+ * @returns {boolean}
+ */
+export function isSavedContact(jid) {
+    if (!jid) return false;
+    const phone = jid.split('@')[0];
+    return !!savedContacts[phone];
 }
 
 
@@ -67,23 +94,52 @@ export async function startWhatsAppConnection(messageHandler) {
     // Build LID → phone mapping from contact syncs
     sock.ev.on('contacts.upsert', (contacts) => {
         let changed = false;
+        let authChanged = false;
         for (const c of contacts) {
             if (c.lid && c.id) {
                 lidToPhone[c.lid] = c.id;
                 changed = true;
             }
+            if (c.id && c.name) {
+                savedContacts[c.id.split('@')[0]] = c.name;
+                authChanged = true;
+            }
         }
         if (changed) saveLidCache();
+        if (authChanged) saveSavedContacts();
     });
     sock.ev.on('contacts.update', (updates) => {
         let changed = false;
+        let authChanged = false;
         for (const c of updates) {
             if (c.lid && c.id) {
                 lidToPhone[c.lid] = c.id;
                 changed = true;
             }
+            if (c.id && c.name) {
+                savedContacts[c.id.split('@')[0]] = c.name;
+                authChanged = true;
+            }
         }
         if (changed) saveLidCache();
+        if (authChanged) saveSavedContacts();
+    });
+
+    // Bulk history sync (Initial load on link/restore)
+    sock.ev.on('messaging-history.set', ({ contacts }) => {
+        if (!contacts || contacts.length === 0) return;
+        
+        let changed = false;
+        for (const c of contacts) {
+            if (c.id && c.name) {
+                savedContacts[c.id.split('@')[0]] = c.name;
+                changed = true;
+            }
+        }
+        if (changed) {
+            logger.info(`[CONNECTION] Loaded bulk contacts from history sync.`);
+            saveSavedContacts();
+        }
     });
 
     // Handle connection updates
