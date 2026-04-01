@@ -3,7 +3,7 @@ import { extractPhone } from '../../utils/helpers.js';
 import logger from '../../utils/logger.js';
 import { handleExecutorMenu } from './executorMenu.js';
 import { handleMemberMenu } from './memberMenu.js';
-import { MENU_STEPS } from '../../utils/constants.js';
+import { MENU_STEPS, CANCEL_MESSAGE } from '../../utils/constants.js';
 
 /**
  * Handle direct messages based on user state
@@ -18,6 +18,13 @@ export async function handleDmMenu(sock, msg, userJid, messageText, isUserAdmin)
     const normalizedMessage = messageText.trim().toLowerCase();
 
     // 1. Check for global session reset / entry points FIRST
+    // Handle cancel command
+    if (normalizedMessage === 'cancel') {
+        await clearUserFormState(phone);
+        await sock.sendMessage(userJid, { text: CANCEL_MESSAGE });
+        return;
+    }
+
     // This allows users to type "Menu" or "Admin" at ANY stage to reset.
     if (normalizedMessage === 'menu') {
         await clearUserFormState(phone);

@@ -23,6 +23,7 @@ import config from '../config/config.js';
 import logger from '../utils/logger.js';
 import { formatDate } from '../utils/helpers.js';
 import { postReportToGroup } from '../services/groupPoster.js';
+import { CANCEL_MESSAGE } from '../utils/constants.js';
 
 // Form steps
 const STEPS = {
@@ -76,7 +77,7 @@ export async function processFormResponse(sock, userJid, message) {
     if (message.trim().toLowerCase() === 'cancel') {
         await clearUserFormState(userJid);
         await sock.sendMessage(userJid, {
-            text: '❌ Form cancelled. Send "evangelism" to start a new report.'
+            text: CANCEL_MESSAGE
         });
         return;
     }
@@ -534,7 +535,7 @@ async function processConfirmationStep(sock, userJid, message, formData) {
         // User said no
         await clearUserFormState(userJid);
         await sock.sendMessage(userJid, {
-            text: '❌ Report cancelled. Send "evangelism" to start a new report.'
+            text: CANCEL_MESSAGE
         });
         return;
     }

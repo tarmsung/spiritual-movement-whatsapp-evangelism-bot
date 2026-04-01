@@ -1,4 +1,5 @@
 import logger from '../utils/logger.js';
+import { CANCEL_MESSAGE } from '../utils/constants.js';
 import { getAllAssemblies } from '../database/db.js';
 import { generateAssemblyReport } from '../services/aiReportGenerator.js';
 import { generatePDFReport } from '../services/pdfGenerator.js';
@@ -62,7 +63,7 @@ export async function processTestReportResponse(sock, userJid, message) {
     // Handle cancel
     if (text === 'cancel') {
         testReportState.delete(userJid);
-        await sock.sendMessage(userJid, { text: '❌ Test report cancelled.' });
+        await sock.sendMessage(userJid, { text: CANCEL_MESSAGE });
         return;
     }
 

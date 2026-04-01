@@ -10,7 +10,7 @@ import {
 } from '../../database/db.js';
 import { extractPhone } from '../../utils/helpers.js';
 import logger from '../../utils/logger.js';
-import { MENU_STEPS } from '../../utils/constants.js';
+import { MENU_STEPS, CANCEL_MESSAGE } from '../../utils/constants.js';
 import { getStatesReport, getReportsSummary } from '../../services/adminReportService.js';
 
 const ADMIN_NAV_FOOTER = '\n\n────────────────────\n_Type *Admin* to go back or *Cancel* to exit._';
@@ -26,7 +26,7 @@ export async function handleExecutorMenu(sock, userJid, messageText, currentStep
     // Global cancel
     if (normalizedMessage === 'cancel') {
         await clearUserFormState(phone);
-        await sock.sendMessage(userJid, { text: '❌ Session cancelled. Type *Admin* to return to the menu.' });
+        await sock.sendMessage(userJid, { text: CANCEL_MESSAGE });
         return;
     }
 
@@ -216,7 +216,7 @@ export async function handleExecutorMenu(sock, userJid, messageText, currentStep
                     });
                 } else if (normalizedMessage === 'no' || normalizedMessage === 'n') {
                     await clearUserFormState(phone);
-                    await sock.sendMessage(userJid, { text: `❌ Cancelled. No member was added.${ADMIN_NAV_FOOTER}` });
+                    await sock.sendMessage(userJid, { text: CANCEL_MESSAGE });
                 } else {
                     await sock.sendMessage(userJid, { text: '❌ Please reply with *yes* or *no*.' });
                 }
@@ -264,7 +264,7 @@ export async function handleExecutorMenu(sock, userJid, messageText, currentStep
                     });
                 } else if (normalizedMessage === 'no' || normalizedMessage === 'n') {
                     await clearUserFormState(phone);
-                    await sock.sendMessage(userJid, { text: `❌ Cancelled. No changes were made.${ADMIN_NAV_FOOTER}` });
+                    await sock.sendMessage(userJid, { text: CANCEL_MESSAGE });
                 } else {
                     await sock.sendMessage(userJid, { text: '❌ Please reply with *yes* or *no*.' });
                 }

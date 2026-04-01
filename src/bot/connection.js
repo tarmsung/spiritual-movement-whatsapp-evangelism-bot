@@ -128,7 +128,7 @@ export async function startWhatsAppConnection(messageHandler) {
     // Bulk history sync (Initial load on link/restore)
     sock.ev.on('messaging-history.set', ({ contacts }) => {
         if (!contacts || contacts.length === 0) return;
-        
+
         let changed = false;
         for (const c of contacts) {
             if (c.id && c.name) {

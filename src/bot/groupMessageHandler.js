@@ -1,5 +1,5 @@
 import { isEvangelismReport, parseReport, validateParsedReport } from '../utils/groupReportParser.js';
-import { getAssemblyByGroupJid, createGroupReport } from '../database/db.js';
+import { getAssemblyByGroupJid, createGroupReport, getMembersByIds } from '../database/db.js';
 import { sendUpcomingEvents, sendNextEvent } from './messageHandler.js';
 import { extractPhone } from '../utils/helpers.js';
 import logger from '../utils/logger.js';
@@ -25,7 +25,6 @@ export async function handleGroupMessage(sock, msg, messageText) {
 
     // Handle calendar commands from group
     if (normalizedText.startsWith('!events') || normalizedText.startsWith('events')) {
-        // Extract month argument if present
         const parts = normalizedText.split(' ');
         const monthArg = parts.length > 1 ? parts[1] : null;
         await sendUpcomingEvents(sock, groupJid, monthArg);
@@ -37,10 +36,7 @@ export async function handleGroupMessage(sock, msg, messageText) {
         return;
     }
 
-
     // Check if this is an evangelism report
-    // NOTE: Group commands like !events and !next remain open to all members.
-    // Only the submission of evangelism reports is restricted by supervisor status if needed.
     if (!isEvangelismReport(messageText)) {
         logger.info(`[GROUP] Not an evangelism report, ignoring.`);
         return;
@@ -53,24 +49,75 @@ export async function handleGroupMessage(sock, msg, messageText) {
         const parsedReport = parseReport(messageText);
         logger.info(`[GROUP] Parsed report:`, JSON.stringify(parsedReport));
 
-        // Validate the parsed data
+        // Validate the parsed data (field presence, date format, numbers)
         const validation = validateParsedReport(parsedReport);
 
         if (!validation.valid) {
             logger.warn(`[GROUP] Invalid evangelism report from ${senderJid}:`, validation.errors);
 
-            // Optionally send error message to group
-            const errorMsg = `❌ *Evangelism Report Error* @${extractPhone(senderJid)}\n\n` +
+            const errorMsg =
+                `❌ *Evangelism Report Error* @${extractPhone(senderJid)}\n\n` +
                 `The report could not be saved due to the following issues:\n` +
                 validation.errors.map(err => `• ${err}`).join('\n') +
                 `\n\n_Please check the format and try again._`;
 
-            await sock.sendMessage(groupJid, {
-                text: errorMsg,
-                mentions: [senderJid]
-            });
+            await sock.sendMessage(groupJid, { text: errorMsg, mentions: [senderJid] });
             return;
         }
+
+        // ── ID Resolution ────────────────────────────────────────────────────
+        // The Team field must now contain comma-separated member IDs (e.g. "1079, 1059, 1082").
+        // We resolve each ID to the canonical full_name stored in the members table.
+        // If ANY ID is not found, the entire report is REJECTED — nothing is saved.
+        const rawTeam = (parsedReport.preachers_team || '').trim();
+        const teamTokens = rawTeam.split(',').map(t => t.trim()).filter(Boolean);
+
+        // Separate numeric tokens (IDs) from plain-text tokens (fallback names)
+        const numericIds = [];
+        const idToToken  = new Map(); // original token → numeric id (for error reporting)
+
+        for (const token of teamTokens) {
+            const num = parseInt(token, 10);
+            if (!isNaN(num) && String(num) === token.trim()) {
+                numericIds.push(num);
+                idToToken.set(num, token);
+            }
+        }
+
+        if (numericIds.length > 0) {
+            // Batch-look up all IDs in one query
+            const memberMap = await getMembersByIds(numericIds);
+
+            // Find any IDs that were not in the database
+            const unknownIds = numericIds.filter(id => !memberMap.has(id));
+
+            if (unknownIds.length > 0) {
+                const idList = unknownIds.map(id => `• ${id}`).join('\n');
+                const errorMsg =
+                    `❌ *Evangelism Report Error* @${extractPhone(senderJid)}\n\n` +
+                    `The following Team IDs were not found in the database:\n` +
+                    `${idList}\n\n` +
+                    `Please check the IDs and resubmit your report.\n` +
+                    `_(You can look up your ID in the member directory.)_`;
+
+                logger.warn(`[GROUP] Unknown member IDs in report from ${senderJid}: ${unknownIds.join(', ')}`);
+                await sock.sendMessage(groupJid, { text: errorMsg, mentions: [senderJid] });
+                return; // Hard stop — report NOT saved
+            }
+
+            // All IDs resolved — build the canonical names string
+            const resolvedNames = teamTokens.map(token => {
+                const num = parseInt(token, 10);
+                if (!isNaN(num) && memberMap.has(num)) {
+                    return memberMap.get(num); // canonical name
+                }
+                return token; // plain-text token passed through as-is
+            });
+
+            parsedReport.preachers_team = resolvedNames.join(', ');
+            logger.info(`[GROUP] Team resolved: ${parsedReport.preachers_team}`);
+        }
+        // ── End ID Resolution ─────────────────────────────────────────────────
 
         // Get assembly for this group
         const assembly = await getAssemblyByGroupJid(groupJid);
@@ -92,13 +139,14 @@ export async function handleGroupMessage(sock, msg, messageText) {
             parsedReport.reporter_name = senderPhone;
         }
 
-        // Save the report
+        // Save the report with resolved names
         const result = await createGroupReport(assembly.id, parsedReport, senderPhone, msg.key.id);
 
         logger.info(`[GROUP] Report saved successfully with ID: ${result.lastInsertRowid}`);
 
         // Send confirmation message
-        const confirmMsg = `✅ *Evangelism Report Saved!* @${senderPhone}\n\n` +
+        const confirmMsg =
+            `✅ *Evangelism Report Saved!* @${senderPhone}\n\n` +
             `📋 Report #${result.lastInsertRowid}\n` +
             `📅 Date: ${parsedReport.activity_date}\n` +
             `🏘️ Area: ${parsedReport.area || 'N/A'}\n` +
@@ -107,10 +155,7 @@ export async function handleGroupMessage(sock, msg, messageText) {
             `🏛️ Cluster: ${assembly.name}\n\n` +
             `Thank you for your faithfulness! 🙏`;
 
-        await sock.sendMessage(groupJid, {
-            text: confirmMsg,
-            mentions: [senderJid]
-        });
+        await sock.sendMessage(groupJid, { text: confirmMsg, mentions: [senderJid] });
 
     } catch (error) {
         logger.error('[GROUP] Error processing group report:', error);
@@ -120,3 +165,5 @@ export async function handleGroupMessage(sock, msg, messageText) {
         });
     }
 }
+
+

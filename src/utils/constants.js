@@ -29,3 +29,7 @@ export const MENU_STEPS = {
     EXECUTOR_VIEW_CLUSTER_SELECT: 140,
 };
 
+/**
+ * Standard closing message for the SM chatbot
+ */
+export const CANCEL_MESSAGE = 'Thank you for using the SM chatbot. I am here to assist you 24/7! 🙏🏾';

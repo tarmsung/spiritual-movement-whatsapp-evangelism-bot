@@ -2,7 +2,7 @@ import { saveUserFormState, clearUserFormState } from '../../database/db.js';
 import { extractPhone } from '../../utils/helpers.js';
 import logger from '../../utils/logger.js';
 import { sendUpcomingEvents, sendNextEvent } from '../messageHandler.js';
-import { MENU_STEPS } from '../../utils/constants.js';
+import { MENU_STEPS, CANCEL_MESSAGE } from '../../utils/constants.js';
 
 const NAV_FOOTER = '\n\n────────────────────\n_Type *Menu* to go back or *Cancel* to exit._';
 
@@ -23,7 +23,7 @@ export async function handleMemberMenu(sock, userJid, messageText, currentStep, 
     // Global cancel
     if (normalizedMessage === 'cancel' || normalizedMessage === 'exit') {
         await clearUserFormState(phone);
-        await sock.sendMessage(userJid, { text: '❌ Menu closed. Type *Menu* to open it again.' });
+        await sock.sendMessage(userJid, { text: CANCEL_MESSAGE });
         return;
     }
 
