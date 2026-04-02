@@ -74,14 +74,30 @@ export async function handleGroupMessage(sock, msg, messageText) {
 
         // Separate numeric tokens (IDs) from plain-text tokens (fallback names)
         const numericIds = [];
-        const idToToken  = new Map(); // original token → numeric id (for error reporting)
+        const invalidTokens = [];
 
         for (const token of teamTokens) {
             const num = parseInt(token, 10);
             if (!isNaN(num) && String(num) === token.trim()) {
                 numericIds.push(num);
-                idToToken.set(num, token);
+            } else {
+                invalidTokens.push(token);
             }
+        }
+
+        // Strictly enforce IDs: reject if any plain names were used
+        if (invalidTokens.length > 0) {
+            const invalidList = invalidTokens.map(t => `• ${t}`).join('\n');
+            const errorMsg =
+                `❌ *Evangelism Report Error* @${extractPhone(senderJid)}\n\n` +
+                `You provided names instead of Member IDs for the Team field:\n` +
+                `${invalidList}\n\n` +
+                `*Only numeric Member IDs are allowed.* Please replace the names with the correct IDs and resubmit your report.\n` +
+                `_(You can ask an administrator if you don't know your ID.)_`;
+
+            logger.warn(`[GROUP] Rejected report from ${senderJid} due to non-numeric team members: ${invalidTokens.join(', ')}`);
+            await sock.sendMessage(groupJid, { text: errorMsg, mentions: [senderJid] });
+            return; // Hard stop — report NOT saved
         }
 
         if (numericIds.length > 0) {
@@ -98,7 +114,7 @@ export async function handleGroupMessage(sock, msg, messageText) {
                     `The following Team IDs were not found in the database:\n` +
                     `${idList}\n\n` +
                     `Please check the IDs and resubmit your report.\n` +
-                    `_(You can look up your ID in the member directory.)_`;
+                    `_(You can ask an administrator if you don't know your ID.)_`;
 
                 logger.warn(`[GROUP] Unknown member IDs in report from ${senderJid}: ${unknownIds.join(', ')}`);
                 await sock.sendMessage(groupJid, { text: errorMsg, mentions: [senderJid] });
@@ -108,10 +124,7 @@ export async function handleGroupMessage(sock, msg, messageText) {
             // All IDs resolved — build the canonical names string
             const resolvedNames = teamTokens.map(token => {
                 const num = parseInt(token, 10);
-                if (!isNaN(num) && memberMap.has(num)) {
-                    return memberMap.get(num); // canonical name
-                }
-                return token; // plain-text token passed through as-is
+                return memberMap.get(num); // canonical name
             });
 
             parsedReport.preachers_team = resolvedNames.join(', ');
