@@ -64,6 +64,15 @@ export function isSavedContact(jid) {
 
 let sock = null;
 
+// Deduplication: track processed message IDs to prevent retry-replay loops
+// Baileys sends retry receipts when decryption fails, causing the same message
+// to be delivered multiple times — this cache prevents duplicate bot responses.
+const processedMsgIds = new Set();
+const PROCESSED_MSG_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
+// Stale message threshold: ignore messages older than this on delivery
+const STALE_MSG_THRESHOLD_MS = 60 * 1000; // 60 seconds
+
 /**
  * Start WhatsApp connection
  * @param {Function} messageHandler - Function to handle incoming messages
@@ -198,6 +207,22 @@ export async function startWhatsAppConnection(messageHandler) {
                     continue;
                 }
 
+                // Deduplication check — skip if this message ID was already processed
+                const msgId = msg.key.id;
+                if (msgId && processedMsgIds.has(msgId)) {
+                    logger.warn(`[CONNECTION] Duplicate message detected (id: ${msgId}), skipping retry replay.`);
+                    continue;
+                }
+
+                // Stale message check — skip messages older than 60s (e.g. queued while bot was offline)
+                const msgTimestamp = msg.messageTimestamp
+                    ? Number(msg.messageTimestamp) * 1000
+                    : null;
+                if (msgTimestamp && (Date.now() - msgTimestamp) > STALE_MSG_THRESHOLD_MS) {
+                    logger.warn(`[CONNECTION] Stale message skipped (id: ${msgId}, age: ${Math.round((Date.now() - msgTimestamp) / 1000)}s)`);
+                    continue;
+                }
+
                 logger.info(`[CONNECTION] Message from: ${remoteJid} (group: ${isGroup})`);
 
                 // Extract message text from different message types
@@ -231,6 +256,13 @@ export async function startWhatsAppConnection(messageHandler) {
                 }
 
                 logger.info(`[CONNECTION] Extracted text (first 50 chars): ${messageText.substring(0, 50)}`);
+
+                // Mark message as processed BEFORE handling to prevent race conditions
+                if (msgId) {
+                    processedMsgIds.add(msgId);
+                    // Auto-expire the ID from the cache after TTL to prevent memory growth
+                    setTimeout(() => processedMsgIds.delete(msgId), PROCESSED_MSG_TTL_MS);
+                }
 
                 // Process message
                 await messageHandler(sock, msg, messageText);
