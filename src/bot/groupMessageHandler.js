@@ -162,6 +162,7 @@ export async function handleGroupMessage(sock, msg, messageText) {
             `✅ *Evangelism Report Saved!* @${senderPhone}\n\n` +
             `📋 Report #${result.lastInsertRowid}\n` +
             `📅 Date: ${parsedReport.activity_date}\n` +
+            `👥 Team: ${parsedReport.preachers_team || 'N/A'}\n` +
             `🏘️ Area: ${parsedReport.area || 'N/A'}\n` +
             `✝️ Saved: ${parsedReport.saved}\n` +
             `🙏 Healed: ${parsedReport.healed}\n` +
