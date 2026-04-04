@@ -4,18 +4,18 @@ import OpenAI from 'openai';
 import config from '../config/config.js';
 
 /**
- * Generate a text-based table report of states for a cluster
+ * Generate a text-based table report of stats for a cluster
  * @param {Object} assembly - Assembly object { id, name }
  * @param {string} startDate - Start date (YYYY-MM-DD)
  * @param {string} endDate - End date (YYYY-MM-DD)
  */
-export async function getStatesReport(assembly, startDate, endDate) {
-    logger.info(`Generating states report for ${assembly.name} from ${startDate} to ${endDate}`);
+export async function getStatsReport(assembly, startDate, endDate) {
+    logger.info(`Generating stats report for ${assembly.name} from ${startDate} to ${endDate}`);
     
     const reports = await getReportsForAssembly(assembly.id, startDate, endDate);
     
     if (!reports || reports.length === 0) {
-        return `📊 *${assembly.name} States*\nPeriod: ${startDate} to ${endDate}\n\nNo data recorded for this period.`;
+        return `📊 *${assembly.name} Stats*\nPeriod: ${startDate} to ${endDate}\n\nNo data recorded for this period.`;
     }
 
     // Junk/noise values to filter out
@@ -68,7 +68,7 @@ export async function getStatesReport(assembly, startDate, endDate) {
     const numLocations = uniqueLocations.size;
 
     // Build the message
-    let msg = `📊 *${assembly.name.toUpperCase()} STATES*\n`;
+    let msg = `📊 *${assembly.name.toUpperCase()} STATS*\n`;
     msg += `📅 ${startDate} — ${endDate}\n`;
     msg += `────────────────────\n\n`;
     

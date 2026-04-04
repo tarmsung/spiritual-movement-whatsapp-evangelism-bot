@@ -11,7 +11,7 @@ import {
 import { extractPhone } from '../../utils/helpers.js';
 import logger from '../../utils/logger.js';
 import { MENU_STEPS, CANCEL_MESSAGE } from '../../utils/constants.js';
-import { getStatesReport, getReportsSummary } from '../../services/adminReportService.js';
+import { getStatsReport, getReportsSummary } from '../../services/adminReportService.js';
 
 const ADMIN_NAV_FOOTER = '\n\n────────────────────\n_Type *Admin* to go back or *Cancel* to exit._';
 
@@ -66,8 +66,8 @@ export async function handleExecutorMenu(sock, userJid, messageText, currentStep
             // ── FETCH DATA ────────────────────────────────────────────────────
             case MENU_STEPS.EXECUTOR_FETCH_DATA:
                 if (normalizedMessage === '1') {
-                    await sendClusterSelection(sock, userJid, 'Get States');
-                    await saveUserFormState(phone, MENU_STEPS.EXECUTOR_FETCH_DATA_GET_STATES_CLUSTER, formData);
+                    await sendClusterSelection(sock, userJid, 'Get Stats');
+                    await saveUserFormState(phone, MENU_STEPS.EXECUTOR_FETCH_DATA_GET_STATS_CLUSTER, formData);
                 } else if (normalizedMessage === '2') {
                     await sendClusterSelection(sock, userJid, 'Reports Summary');
                     await saveUserFormState(phone, MENU_STEPS.EXECUTOR_FETCH_DATA_REPORTS_SUMMARY_CLUSTER, formData);
@@ -76,7 +76,7 @@ export async function handleExecutorMenu(sock, userJid, messageText, currentStep
                 }
                 break;
 
-            case MENU_STEPS.EXECUTOR_FETCH_DATA_GET_STATES_CLUSTER:
+            case MENU_STEPS.EXECUTOR_FETCH_DATA_GET_STATS_CLUSTER:
             case MENU_STEPS.EXECUTOR_FETCH_DATA_REPORTS_SUMMARY_CLUSTER: {
                 const assemblies = await getAllAssemblies();
                 const clusterChoice = parseInt(normalizedMessage);
@@ -87,7 +87,7 @@ export async function handleExecutorMenu(sock, userJid, messageText, currentStep
                 const selectedAssembly = assemblies[clusterChoice - 1];
                 formData.assemblyId = selectedAssembly.id;
                 formData.assemblyName = selectedAssembly.name;
-                formData.reportType = (currentStep === MENU_STEPS.EXECUTOR_FETCH_DATA_GET_STATES_CLUSTER) ? 'states' : 'summary';
+                formData.reportType = (currentStep === MENU_STEPS.EXECUTOR_FETCH_DATA_GET_STATS_CLUSTER) ? 'stats' : 'summary';
                 await sendMonthSelection(sock, userJid);
                 await saveUserFormState(phone, MENU_STEPS.EXECUTOR_FETCH_DATA_MONTH, formData);
                 break;
@@ -104,8 +104,8 @@ export async function handleExecutorMenu(sock, userJid, messageText, currentStep
                 await sock.sendMessage(userJid, { text: `🔄 Generating report for *${formData.assemblyName}* (${selectedMonth.label})...` });
                 const assemblyObj = { id: formData.assemblyId, name: formData.assemblyName };
                 let report;
-                if (formData.reportType === 'states') {
-                    report = await getStatesReport(assemblyObj, selectedMonth.start, selectedMonth.end);
+                if (formData.reportType === 'stats') {
+                    report = await getStatsReport(assemblyObj, selectedMonth.start, selectedMonth.end);
                 } else {
                     report = await getReportsSummary(assemblyObj, selectedMonth.start, selectedMonth.end);
                 }
@@ -334,7 +334,7 @@ async function sendFetchDataSubMenu(sock, userJid) {
     let menuText = `🔄 *FETCH DATA*\n`;
     menuText += `────────────────────\n\n`;
     menuText += `Please choose an option:\n\n`;
-    menuText += `1️⃣ Get states\n`;
+    menuText += `1️⃣ Get stats\n`;
     menuText += `2️⃣ Reports summary\n\n`;
     menuText += `_Reply with 1 or 2._`;
     await sock.sendMessage(userJid, { text: menuText });
