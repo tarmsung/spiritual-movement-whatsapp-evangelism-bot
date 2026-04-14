@@ -1,6 +1,6 @@
 import { getReportsForAssembly } from '../database/db.js';
 import logger from '../utils/logger.js';
-import OpenAI from 'openai';
+import Anthropic from '@anthropic-ai/sdk';
 import config from '../config/config.js';
 
 /**
@@ -109,12 +109,12 @@ export async function getReportsSummary(assembly, startDate, endDate) {
         return `📝 *${assembly.name} Reports Summary*\nPeriod: ${startDate} to ${endDate}\n\nNo reports found.`;
     }
 
-    if (!config.openaiApiKey) {
+    if (!config.anthropicApiKey) {
         return generateFallbackSummary(assembly, reports, startDate, endDate);
     }
 
     try {
-        const openai = new OpenAI({ apiKey: config.openaiApiKey });
+        const anthropic = new Anthropic({ apiKey: config.anthropicApiKey });
         
         const dataForAI = reports.map(r => ({
             message: r.message_summary,
@@ -147,16 +147,17 @@ Format your response as follow:
 
 Keep it concise and punchy. Use bullet points where indicated. NO labels like "Analysis:" or "Summary:". Just the sections.`;
 
-        const completion = await openai.chat.completions.create({
-            model: 'gpt-4o', // Using gpt-4o as default modern model
+        const completion = await anthropic.messages.create({
+            model: 'claude-sonnet-4-6',
+            max_tokens: 1024,
+            system: 'You are an expert report analyzer for a church evangelism ministry.',
             messages: [
-                { role: 'system', content: 'You are an expert report analyzer for a church evangelism ministry.' },
                 { role: 'user', content: prompt }
             ],
             temperature: 0.5
         });
 
-        const aiResponse = completion.choices[0].message.content;
+        const aiResponse = completion.content[0].text;
         
         return `📝 *${assembly.name.toUpperCase()} SUMMARY*\n📅 ${startDate} — ${endDate}\n\n${aiResponse}`;
 
