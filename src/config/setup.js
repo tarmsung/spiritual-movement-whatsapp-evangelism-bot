@@ -57,7 +57,7 @@ async function runSetup() {
     console.log('╚═══════════════════════════════════════════╝\n');
 
     console.log('Next steps:');
-    console.log('1. Review your .env file and add OpenAI API key (optional)');
+    console.log('1. Review your .env file and add your Anthropic API key (optional)');
     console.log('2. Run: npm start');
     console.log('3. Scan the QR code with WhatsApp');
     console.log('4. Test by sending: !evangelism\n');
@@ -83,7 +83,7 @@ async function setupEnvironment(envPath) {
         .map(n => `${n}@s.whatsapp.net`)
         .join(',');
 
-    const openaiKey = await question('OpenAI API Key (optional, press Enter to skip): ');
+    const anthropicKey = await question('Anthropic API Key (optional, press Enter to skip): ');
 
     // Create .env content
     const envContent = `# Church Information
@@ -96,8 +96,8 @@ NODE_ENV=production
 # Admin Configuration
 ADMIN_NUMBERS=${formattedAdmins}
 
-# OpenAI Configuration (Optional)
-OPENAI_API_KEY=${openaiKey}
+# Anthropic Configuration (Optional - for AI-powered reports)
+ANTHROPIC_API_KEY=${anthropicKey}
 
 # Report Schedule (Cron format)
 # Default: 0 9 1 * * (9 AM on the 1st of each month)
