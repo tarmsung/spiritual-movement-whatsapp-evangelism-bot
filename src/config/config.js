@@ -26,8 +26,8 @@ const config = {
         ? process.env.REVIEWER_NUMBERS.split(',').map(n => n.trim())
         : [],
 
-    // OpenAI configuration
-    openaiApiKey: process.env.OPENAI_API_KEY || null,
+    // Anthropic configuration
+    anthropicApiKey: process.env.ANTHROPIC_API_KEY || null,
 
     // Report schedule (cron format)
     reportSchedule: process.env.REPORT_SCHEDULE || '0 9 10 * *',

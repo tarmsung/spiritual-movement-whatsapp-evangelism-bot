@@ -1,4 +1,4 @@
-import OpenAI from 'openai';
+import Anthropic from '@anthropic-ai/sdk';
 import config from '../config/config.js';
 import logger from '../utils/logger.js';
 import {
@@ -113,7 +113,7 @@ export async function generateAssemblyReport(assembly, startDate, endDate, optio
     };
 
     // Generate AI narrative
-    if (config.openaiApiKey) {
+    if (config.anthropicApiKey) {
         try {
             const narrative = await generateNarrative(reportData, command);
             reportData.narrative = narrative.narrative;
@@ -126,7 +126,7 @@ export async function generateAssemblyReport(assembly, startDate, endDate, optio
             reportData.conclusion = generateFallbackConclusion(reportData);
         }
     } else {
-        logger.info('No OpenAI API key - using fallback narrative');
+        logger.info('No Anthropic API key - using fallback narrative');
         reportData.narrative = generateFallbackNarrative(reportData);
         reportData.messageEmphasis = generateFallbackMessageEmphasis();
         reportData.conclusion = generateFallbackConclusion(reportData);
@@ -254,31 +254,28 @@ function deduplicateLocations(items) {
 }
 
 /**
- * Generate narrative report using OpenAI with SMC authority voice
+ * Generate narrative report using Claude AI with SMC authority voice
  */
 async function generateNarrative(reportData, command) {
-    const openai = new OpenAI({ apiKey: config.openaiApiKey });
+    const anthropic = new Anthropic({ apiKey: config.anthropicApiKey });
     const prompt = buildNarrativePrompt(reportData, command);
 
     logger.info(`Generating narrative for ${reportData.assemblyName} with ${command.voice} voice`);
 
-    const completion = await openai.chat.completions.create({
-        model: 'gpt-5.2',
+    const completion = await anthropic.messages.create({
+        model: 'claude-sonnet-4-6',
+        max_tokens: 2500,
+        system: buildSystemPrompt(command),
         messages: [
-            {
-                role: 'system',
-                content: buildSystemPrompt(command)
-            },
             {
                 role: 'user',
                 content: prompt
             }
         ],
-        temperature: 0.7,
-        max_completion_tokens: 2500
+        temperature: 0.7
     });
 
-    const response = completion.choices[0].message.content;
+    const response = completion.content[0].text;
     return parseNarrativeResponse(response);
 }
 
