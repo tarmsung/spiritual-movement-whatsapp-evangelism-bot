@@ -120,49 +120,34 @@ export function getMonthName(date) {
 }
 
 /**
- * Get report range (10th of previous month to 9th of current month)
+ * Get report range (1st to last day of previous month)
  * @param {Date} [baseDate] - Date to calculate from (defaults to now)
  * @returns {{start: string, end: string}}
  */
-export function get10thTo9thRange(baseDate = null) {
+export function getPreviousMonthRange(baseDate = null) {
     const now = baseDate ? new Date(baseDate) : new Date();
 
-    // If the base date is before the 10th, it belongs to the previous cycle.
-    // E.g., March 5th implies the "Jan 10 - Feb 9" cycle.
-    // E.g., March 15th implies the "Feb 10 - March 9" cycle.
-    const isPast10th = now.getDate() >= 10;
+    let year = now.getFullYear();
+    let month = now.getMonth() - 1;
 
-    // Current month of the cycle (the month the cycle Ends in)
-    let endYear = now.getFullYear();
-    let endMonth = isPast10th ? now.getMonth() : now.getMonth() - 1;
-
-    if (endMonth < 0) {
-        endMonth = 11;
-        endYear--;
+    if (month < 0) {
+        month = 11;
+        year--;
     }
 
-    // Previous month of the cycle (the month the cycle Starts in)
-    let startYear = endYear;
-    let startMonth = endMonth - 1;
+    const start = new Date(year, month, 1);
+    const end = new Date(year, month + 1, 0);
 
-    if (startMonth < 0) {
-        startMonth = 11;
-        startYear--;
-    }
-
-    // Start: 10th of previous month
-    const start = new Date(startYear, startMonth, 10);
-    // End: 9th of current month
-    const end = new Date(endYear, endMonth, 9);
+    const fmt = (y, m, d) => `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
 
     return {
-        start: start.toISOString().split('T')[0],
-        end: end.toISOString().split('T')[0]
+        start: fmt(year, month, 1),
+        end: fmt(year, month, end.getDate())
     };
 }
 
 /**
- * Format the period name for the 10th to 9th cycle
+ * Format the period name for the date range
  * @param {string} startDate - YYYY-MM-DD
  * @param {string} endDate - YYYY-MM-DD
  * @returns {string} e.g. "January 10 - February 9, 2026"

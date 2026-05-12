@@ -3,7 +3,7 @@ import cron from 'node-cron';
 import logger from '../utils/logger.js';
 import config from '../config/config.js';
 import { getAllAssemblies, getEventsInDays } from '../database/db.js';
-import { get10thTo9thRange, formatNumber, formatCalendarDate, sleep, normalizePhone } from '../utils/helpers.js';
+import { getPreviousMonthRange, formatNumber, formatCalendarDate, sleep, normalizePhone } from '../utils/helpers.js';
 import { generateAssemblyReports, generateAssemblyReport } from './aiReportGenerator.js';
 import { generatePDFReport } from './pdfGenerator.js';
 import { getSocket } from '../bot/connection.js';
@@ -65,8 +65,8 @@ export async function generateAndDistributeMonthlyReport() {
             return;
         }
 
-        // Get 10th to 9th date range
-        const { start, end } = get10thTo9thRange();
+        // Get 1st to end of previous month date range
+        const { start, end } = getPreviousMonthRange();
 
         // Generate reports for all assemblies
         const assemblyReports = await generateAssemblyReports(start, end);
