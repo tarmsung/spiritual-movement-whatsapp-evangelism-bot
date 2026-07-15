@@ -8,7 +8,6 @@ import {
     TableCell,
     WidthType,
     AlignmentType,
-    HeadingLevel,
     BorderStyle,
     ShadingType,
     VerticalAlign,
@@ -18,11 +17,7 @@ import {
     ImageRun,
     HorizontalPositionRelativeFrom,
     VerticalPositionRelativeFrom,
-    HorizontalPositionAlign,
-    VerticalPositionAlign,
-    TableLayoutType,
-    convertInchesToTwip,
-    UnderlineType
+    convertInchesToTwip
 } from 'docx';
 import { writeFileSync, existsSync, mkdirSync, readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
@@ -162,14 +157,13 @@ function buildWatermark() {
                 behindDocument: true,
                 horizontalPosition: {
                     relative: HorizontalPositionRelativeFrom.PAGE,
-                    align: HorizontalPositionAlign.CENTER,
+                    align: 'center',
                 },
                 verticalPosition: {
                     relative: VerticalPositionRelativeFrom.PAGE,
-                    align: VerticalPositionAlign.CENTER,
+                    align: 'center',
                 },
             },
-            transparency: 72,   // ~28% opacity (100 - 72 = 28%)
         });
     } catch (e) {
         logger.warn('Could not load watermark image:', e.message);
@@ -228,7 +222,6 @@ function buildStatsTable(reportData, palette) {
     }));
 
     return new Table({
-        layout: TableLayoutType.FIXED,
         width: { size: 100, type: WidthType.PERCENTAGE },
         rows: [new TableRow({ children: cells })],
         borders: {
