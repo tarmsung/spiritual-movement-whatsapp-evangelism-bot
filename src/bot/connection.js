@@ -92,7 +92,7 @@ export async function startWhatsAppConnection(messageHandler) {
     sock = makeWASocket({
         version,
         auth: state,
-        printQRInTerminal: false,
+        printQRInTerminal: true,
         logger: logger.child({ module: 'baileys' }),
         browser: ['Evangelism Bot', 'Chrome', '1.0.0']
     });
