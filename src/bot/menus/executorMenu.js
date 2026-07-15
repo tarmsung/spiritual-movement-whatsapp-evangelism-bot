@@ -71,8 +71,12 @@ export async function handleExecutorMenu(sock, userJid, messageText, currentStep
                 } else if (normalizedMessage === '2') {
                     await sendClusterSelection(sock, userJid, 'Reports Summary');
                     await saveUserFormState(phone, MENU_STEPS.EXECUTOR_FETCH_DATA_REPORTS_SUMMARY_CLUSTER, formData);
+                } else if (normalizedMessage === '3') {
+                    await sendClusterSelection(sock, userJid, 'Full Field Report (.docx)');
+                    formData.reportType = 'docx';
+                    await saveUserFormState(phone, MENU_STEPS.EXECUTOR_FETCH_DATA_REPORTS_SUMMARY_CLUSTER, formData);
                 } else {
-                    await sock.sendMessage(userJid, { text: '❌ Invalid choice. Please reply with 1 or 2.' });
+                    await sock.sendMessage(userJid, { text: '❌ Invalid choice. Please reply with 1, 2, or 3.' });
                 }
                 break;
 
@@ -87,7 +91,9 @@ export async function handleExecutorMenu(sock, userJid, messageText, currentStep
                 const selectedAssembly = assemblies[clusterChoice - 1];
                 formData.assemblyId = selectedAssembly.id;
                 formData.assemblyName = selectedAssembly.name;
-                formData.reportType = (currentStep === MENU_STEPS.EXECUTOR_FETCH_DATA_GET_STATS_CLUSTER) ? 'stats' : 'summary';
+                if (!formData.reportType) {
+                    formData.reportType = (currentStep === MENU_STEPS.EXECUTOR_FETCH_DATA_GET_STATS_CLUSTER) ? 'stats' : 'summary';
+                }
                 await sendMonthSelection(sock, userJid);
                 await saveUserFormState(phone, MENU_STEPS.EXECUTOR_FETCH_DATA_MONTH, formData);
                 break;
@@ -103,13 +109,57 @@ export async function handleExecutorMenu(sock, userJid, messageText, currentStep
                 const selectedMonth = months[monthChoice - 1];
                 await sock.sendMessage(userJid, { text: `🔄 Generating report for *${formData.assemblyName}* (${selectedMonth.label})...` });
                 const assemblyObj = { id: formData.assemblyId, name: formData.assemblyName };
-                let report;
+                
                 if (formData.reportType === 'stats') {
-                    report = await getStatsReport(assemblyObj, selectedMonth.start, selectedMonth.end);
-                } else {
-                    report = await getReportsSummary(assemblyObj, selectedMonth.start, selectedMonth.end);
+                    const report = await getStatsReport(assemblyObj, selectedMonth.start, selectedMonth.end);
+                    await sock.sendMessage(userJid, { text: report });
+                } else if (formData.reportType === 'summary') {
+                    const report = await getReportsSummary(assemblyObj, selectedMonth.start, selectedMonth.end);
+                    await sock.sendMessage(userJid, { text: report });
+                } else if (formData.reportType === 'docx') {
+                    const { generateAssemblyReport } = await import('../../services/aiReportGenerator.js');
+                    const { generatePDFReport } = await import('../../services/pdfGenerator.js');
+                    const fs = await import('fs');
+
+                    const reportData = await generateAssemblyReport(
+                        assemblyObj,
+                        selectedMonth.start,
+                        selectedMonth.end,
+                        { command: '[Executor Report]' }
+                    );
+
+                    if (reportData.totalOutreaches === 0) {
+                        await sock.sendMessage(userJid, {
+                            text: `⚠️ No evangelism reports found for *${formData.assemblyName}* in *${selectedMonth.label}*.`
+                        });
+                    } else {
+                        const docxPath = await generatePDFReport(reportData);
+
+                        let summary = `📊 *${formData.assemblyName} — ${selectedMonth.label} REPORT*\n`;
+                        summary += '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n';
+                        summary += `📝 Total Outreaches: ${reportData.totalOutreaches}\n`;
+                        summary += `✝️ Saved: ${reportData.totalSaved}\n`;
+                        summary += `🙏 Healed: ${reportData.totalHealed}\n\n`;
+                        if (reportData.locations.length > 0) {
+                            summary += `📍 Locations: ${reportData.locations.join(', ')}\n\n`;
+                        }
+                        if (reportData.labourers.length > 0) {
+                            summary += `👥 Labourers: ${reportData.labourers.join(', ')}\n\n`;
+                        }
+                        summary += '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━';
+                        await sock.sendMessage(userJid, { text: summary });
+
+                        const fileBuffer = fs.readFileSync(docxPath);
+                        const fileName = `Report_${formData.assemblyName.replace(/\s+/g, '_')}_${selectedMonth.label.replace(/\s+/g, '_')}.docx`;
+                        await sock.sendMessage(userJid, {
+                            document: fileBuffer,
+                            mimetype: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                            fileName: fileName,
+                            caption: `📄 ${formData.assemblyName} — ${selectedMonth.label} Field Report`
+                        });
+                    }
                 }
-                await sock.sendMessage(userJid, { text: report });
+                
                 await sock.sendMessage(userJid, { text: ADMIN_NAV_FOOTER });
                 await clearUserFormState(phone);
                 break;
@@ -335,8 +385,9 @@ async function sendFetchDataSubMenu(sock, userJid) {
     menuText += `────────────────────\n\n`;
     menuText += `Please choose an option:\n\n`;
     menuText += `1️⃣ Get stats\n`;
-    menuText += `2️⃣ Reports summary\n\n`;
-    menuText += `_Reply with 1 or 2._`;
+    menuText += `2️⃣ Reports summary\n`;
+    menuText += `3️⃣ Full Field Report (.docx)\n\n`;
+    menuText += `_Reply with 1, 2, or 3._`;
     await sock.sendMessage(userJid, { text: menuText });
 }
 
