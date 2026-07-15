@@ -104,7 +104,7 @@ export async function generateAssemblyReport(assembly, startDate, endDate, optio
         labourers: uniquePreachers,
         activityTypes: uniqueActivityTypes,
         messageSummaries,
-        // Keep overall for backward compatibility with PDF generator
+        // Keep overall for backward compatibility
         overall: {
             totalReports: reports.length,
             totalSaved: totalSaved,
@@ -116,20 +116,23 @@ export async function generateAssemblyReport(assembly, startDate, endDate, optio
     if (config.anthropicApiKey) {
         try {
             const narrative = await generateNarrative(reportData, command);
-            reportData.narrative = narrative.narrative;
-            reportData.messageEmphasis = narrative.messageEmphasis;
-            reportData.conclusion = narrative.conclusion;
+            reportData.fromTheField = narrative.fromTheField;
+            reportData.encounters = narrative.encounters;
+            reportData.whatWePreached = narrative.whatWePreached;
+            reportData.honestReflection = narrative.honestReflection;
+            reportData.closingWord = narrative.closingWord;
+            reportData.closingScripture = narrative.closingScripture;
+            // Legacy field aliases for backward compatibility
+            reportData.narrative = narrative.fromTheField;
+            reportData.messageEmphasis = narrative.whatWePreached;
+            reportData.conclusion = narrative.closingWord;
         } catch (error) {
             logger.error(`Error generating AI narrative for ${assembly.name}:`, error);
-            reportData.narrative = generateFallbackNarrative(reportData);
-            reportData.messageEmphasis = generateFallbackMessageEmphasis();
-            reportData.conclusion = generateFallbackConclusion(reportData);
+            applyFallbackNarrative(reportData);
         }
     } else {
         logger.info('No Anthropic API key - using fallback narrative');
-        reportData.narrative = generateFallbackNarrative(reportData);
-        reportData.messageEmphasis = generateFallbackMessageEmphasis();
-        reportData.conclusion = generateFallbackConclusion(reportData);
+        applyFallbackNarrative(reportData);
     }
 
     return reportData;
@@ -155,9 +158,8 @@ function deduplicateList(items) {
 /**
  * Normalize a person's name for deduplication:
  * - Strip trailing punctuation (periods, commas)
- * - Normalize titles: Br/Brother → Brother, Sr/Sister → Sister
- * - Normalize Mrs./Mrs/Mr./Mr
  * - Collapse whitespace
+ * - Remove leading slash or "and" fragments
  */
 function normalizePersonName(name) {
     let n = name.trim();
@@ -167,8 +169,6 @@ function normalizePersonName(name) {
     n = n.replace(/\s+/g, ' ');
     // Remove leading slash or "and" fragments
     n = n.replace(/^\/\s*/, '').trim();
-    // Normalize titles to a canonical form for comparison
-    // "Br " → "Brother ", "Sr " → "Sister ", "Mrs." → "Mrs", "Mr." → "Mr"
     return n;
 }
 
@@ -216,28 +216,19 @@ function deduplicateLabourers(items) {
 }
 
 /**
- * Normalize a location string for comparison:
- * - Strip trailing punctuation
- * - Collapse whitespace around slashes
- * - Remove wrapping parentheses
- * - Collapse multiple spaces
+ * Normalize a location string for comparison
  */
 function locationKey(loc) {
     let key = loc.toLowerCase().trim();
-    // Strip trailing punctuation
     key = key.replace(/[.,;:!]+$/, '').trim();
-    // Remove wrapping parentheses
     key = key.replace(/^\((.+)\)$/, '$1');
-    // Normalize spaces around slashes
     key = key.replace(/\s*\/\s*/g, '/');
-    // Collapse whitespace
     key = key.replace(/\s+/g, ' ');
     return key;
 }
 
 /**
  * Deduplicate locations with normalization
- * Handles: trailing periods, inconsistent spacing, wrapping parens
  */
 function deduplicateLocations(items) {
     const seen = new Map();
@@ -254,17 +245,17 @@ function deduplicateLocations(items) {
 }
 
 /**
- * Generate narrative report using Claude AI with SMC authority voice
+ * Generate narrative report using Claude AI
  */
 async function generateNarrative(reportData, command) {
     const anthropic = new Anthropic({ apiKey: config.anthropicApiKey });
     const prompt = buildNarrativePrompt(reportData, command);
 
-    logger.info(`Generating narrative for ${reportData.assemblyName} with ${command.voice} voice`);
+    logger.info(`Generating SMC Cluster Report narrative for ${reportData.assemblyName}`);
 
     const completion = await anthropic.messages.create({
         model: 'claude-sonnet-4-6',
-        max_tokens: 2500,
+        max_tokens: 4000,
         system: buildSystemPrompt(command),
         messages: [
             {
@@ -280,196 +271,235 @@ async function generateNarrative(reportData, command) {
 }
 
 /**
- * Build system prompt based on SMC command
+ * Build system prompt — SMC Cluster Report voice (always first-person)
+ * The command parameter is retained for signature compatibility but voice is fixed.
  */
 function buildSystemPrompt(command) {
-    let systemPrompt = 'You are writing a monthly evangelism ministry report for a specific cluster/assembly. ';
+    return `You are the report-writing assistant for Spiritual Movement Crusaders. Your role is to write each cluster's monthly field report — written entirely in first person, as the cluster speaking about their own work.
 
-    if (command.voice === 'first_person') {
-        systemPrompt += 'You are an EXECUTOR who was physically present during the evangelism activities. ';
-        systemPrompt += 'Write in FIRST PERSON using "we", "our", "the Gospel was carried", etc. ';
-        systemPrompt += 'Use an eyewitness, authoritative tone - you SAW these events and can describe resistance, perseverance, and fruit with conviction. ';
-        systemPrompt += 'Write like the Book of Acts: factual, descriptive, emphasizing God\'s work through human obedience.';
-    } else if (command.voice === 'luke_style_third_person') {
-        systemPrompt += 'You are COMPILING testimony from executors who were present. You were NOT there. ';
-        systemPrompt += 'Write in THIRD PERSON using "the evangelists", "they proclaimed", etc. ';
-        systemPrompt += 'Use Luke 1:1-2 style: formal, compiled from eyewitness accounts. ';
-        systemPrompt += 'Do NOT invent details. Stick to reported facts.';
-    } else {
-        systemPrompt += 'Write in neutral THIRD PERSON. Use "the team", "evangelists", etc.';
-    }
+CORE PRINCIPLE: The cluster is the author. They are reporting back to the wider movement, to partner churches, and to the historical record about what we did, what we encountered, what God did through us. These reports are written in the spirit of biblical narrative — honest, plain, and purposeful. Like the accounts in Acts, they record what happened: the fruit, the resistance, the healings, the refusals, the faithfulness, and the silence. They are not promotional material. They are a living record that partner churches in Europe, Africa, and beyond will read to be encouraged, to learn, and to see the pattern of God's faithfulness in this generation.
 
-    systemPrompt += '\n\nTone: perseverance, courage, faithful proclamation, spiritual resistance overcome through prayer and boldness.';
-    systemPrompt += '\nStyle: formal but passionate, factual but faith-filled, sober but hopeful.';
-    systemPrompt += '\n\nIMPORTANT: Only reference facts from the data provided. Do not invent specific incidents, names, or locations not in the data.';
+VOICE AND PERSPECTIVE:
+- Use "we" when speaking collectively about the cluster's work
+- Use "I" when an individual evangelist is reflecting on a specific encounter or conviction
+- Write as if giving an honest account to the wider body of Christ — warm, grounded, and real
+- Always use actual names of individuals from the field data where provided — never replace names with "Brother" or "Sister" followed by a surname as a substitute
 
-    return systemPrompt;
+THEOLOGY OF EVANGELISM — strictly reflected in all report language:
+- Our role is to offer — to present the Gospel, to offer prayer, to give every person the opportunity to respond
+- If someone refuses prayer or rejects the Gospel, that is their story with God, not our unfinished assignment
+- NEVER write phrases like "we will continue to pray for them from a distance", "we pray for them beyond what our hands could reach", or "they are prayed for from a distance" — we do not know what God asks of us after a refusal
+- Faithfulness is measured by opportunities created — showing up, going out, and presenting the Gospel
+- We show up. We present. We give people the chance. We respect their choice. We move on in faith
+
+ON REPORTING NUMBERS HONESTLY — biblical plainness:
+- If zero salvations, state it plainly: we recorded 0 souls saved — no softening, no explanation, no reassurance
+- If salvations occurred, state the number plainly — no commentary about not knowing how to explain it
+- Report what happened. Readers will draw their own encouragement from an honest record
+
+TERMINOLOGY — STRICTLY OBSERVED:
+- NEVER write "spirit" when referring to God's Spirit. ALWAYS write "Holy Spirit" (capital H, capital S)
+- This applies everywhere — narrative sections, encounter stories, themes, reflection, closing word
+- Other spiritual references (evil spirits, ancestral spirits, false spirits) retain their own descriptors
+
+NUMBER FORMATTING — STRICTLY OBSERVED throughout every report:
+- Always write numbers as numerals, never in words (e.g. "16 evangelists" not "sixteen evangelists", "3 souls" not "three souls")
+- When statistical numbers appear in the body text, make them bold using **number** markdown (e.g. "**103** people received Jesus", "we prayed for **89** who were sick")
+- This applies everywhere in the report body — narrative, encounters, reflection, closing word
+
+CORE VALUES:
+- Truth and accuracy above all — never embellish numbers or outcomes
+- Faith-driven, scripturally grounded language — not religious jargon, but living, breathing faith
+- Encouragement for faithfulness, not celebration of volume
+- Written as a historical witness for the wider body of Christ — partner churches, sister clusters, and future readers
+- Holiness, genuine Christianity, and obedience to the Holy Spirit are recurring values of this movement`;
 }
 
 /**
- * Build narrative prompt with only the selected fields
+ * Build narrative prompt — SMC Cluster Report structure (6 content sections)
  */
 function buildNarrativePrompt(reportData, command) {
-    let prompt = `Write a monthly evangelism report for ${reportData.assemblyName} following this structure:\n\n`;
+    let prompt = `Write the monthly field report for ${reportData.assemblyName} — ${reportData.period}.\n\n`;
 
-    prompt += `CONTEXT:\n`;
-    prompt += `- Assembly/Cluster: ${reportData.assemblyName}\n`;
+    prompt += `FIELD DATA:\n`;
+    prompt += `- Cluster: ${reportData.assemblyName}\n`;
     prompt += `- Period: ${reportData.period}\n`;
-    prompt += `- Reporting Command: ${command.name}\n`;
-    prompt += `- Total Outreach Events: ${reportData.totalOutreaches}\n\n`;
+    prompt += `- Total Outreach Events (Opportunities): ${reportData.totalOutreaches}\n`;
+    prompt += `- Souls Saved: ${reportData.totalSaved}\n`;
+    prompt += `- Sick Prayed For: ${reportData.totalHealed}\n`;
+    prompt += `- Evangelists: ${reportData.labourers ? reportData.labourers.length : 0}\n`;
+    prompt += `- Locations Reached: ${reportData.locations ? reportData.locations.length : 0}\n\n`;
 
-    prompt += `STATISTICS:\n`;
-    prompt += `- People Saved: ${reportData.totalSaved}\n`;
-    prompt += `- People Healed: ${reportData.totalHealed}\n\n`;
+    if (reportData.locations && reportData.locations.length > 0) {
+        prompt += `LOCATIONS PREACHED AT:\n`;
+        prompt += reportData.locations.map(l => `- ${l}`).join('\n');
+        prompt += '\n\n';
+    }
 
-    prompt += `LOCATIONS PREACHED AT (unique, already deduplicated):\n`;
-    prompt += reportData.locations.map(l => `- ${l}`).join('\n');
-    prompt += `\n\n`;
+    if (reportData.activityTypes && reportData.activityTypes.length > 0) {
+        prompt += `ACTIVITY TYPES:\n`;
+        prompt += reportData.activityTypes.map(t => `- ${t}`).join('\n');
+        prompt += '\n\n';
+    }
 
-    prompt += `ACTIVITY TYPES (unique, already deduplicated):\n`;
-    prompt += reportData.activityTypes.map(t => `- ${t}`).join('\n');
-    prompt += `\n\n`;
+    if (reportData.labourers && reportData.labourers.length > 0) {
+        prompt += `LABOURERS / EVANGELISTS:\n`;
+        prompt += reportData.labourers.map(l => `- ${l}`).join('\n');
+        prompt += '\n\n';
+    }
 
-    prompt += `LABOURERS / PREACHERS TEAM (unique, already deduplicated):\n`;
-    prompt += reportData.labourers.map(l => `- ${l}`).join('\n');
-    prompt += `\n\n`;
-
-    if (reportData.messageSummaries.length > 0) {
-        prompt += `MESSAGE SUMMARIES FROM INDIVIDUAL REPORTS (use these to identify themes):\n`;
+    if (reportData.messageSummaries && reportData.messageSummaries.length > 0) {
+        prompt += `MESSAGE SUMMARIES FROM FIELD REPORTS:\n`;
         reportData.messageSummaries.forEach((summary, i) => {
             prompt += `${i + 1}. ${summary}\n`;
         });
-        prompt += `\n`;
+        prompt += '\n';
     }
 
-    prompt += `INSTRUCTIONS:\n\n`;
-    prompt += `Write a NARRATIVE REPORT section (3-4 paragraphs):\n`;
-    prompt += `1. Opening: Describe how the Gospel was carried throughout the month in ${reportData.assemblyName}\n`;
-    prompt += `   - Mention the specific locations listed above\n`;
-    prompt += `   - Emphasize the message was not confined to church buildings but taken into daily life\n\n`;
+    prompt += `REQUIRED SECTIONS — produce exactly these 6 sections in order, using these exact headers:\n\n`;
 
-    prompt += `2. Middle Paragraphs: Cover these themes\n`;
-    prompt += `   - The clarity and conviction of the preaching (reference actual message summaries above)\n`;
-    prompt += `   - Evangelists testified of their own deliverance from specific sins/bondages\n`;
-    prompt += `   - Resistance encountered (interruptions, loud music, public objections, confrontation)\n`;
-    prompt += `   - The Word did not cease - it continued with persistence and boldness\n`;
-    prompt += `   - Some who initially mocked later listened in silence or continued conversations after the preaching\n`;
-    prompt += `   - Prayer for the sick - hearts opened, space for salvation message\n\n`;
+    prompt += `FROM THE FIELD:\n`;
+    prompt += `Write 3–4 paragraphs in first person giving the month its character. Reference specific locations. Use actual names from the data where provided. Include the texture of the work: atmosphere, crowd response, encounters. Bold all statistical numbers in the body text using **number** format.\n\n`;
 
-    prompt += `3. Closing: Summarize the month's work\n`;
-    prompt += `   - Steady obedience rather than isolated enthusiasm\n`;
-    prompt += `   - Gospel heard repeatedly across key areas\n`;
-    prompt += `   - Seed sown consistently\n\n`;
+    prompt += `ENCOUNTERS FROM THE MONTH:\n`;
+    prompt += `Write 2–4 specific encounter stories in first person. Use "We met...", "I prayed with...", "We saw...". Draw from message summaries for detail. Honour the people encountered. Bold all statistical numbers.\n\n`;
 
-    prompt += `Then provide:\n`;
-    prompt += `MESSAGE EMPHASIS (5 bullet points):\n`;
-    prompt += `- Derive these from the actual MESSAGE SUMMARIES provided above\n`;
-    prompt += `- List the theological themes that were actually emphasized in the preaching\n\n`;
+    prompt += `WHAT WE PREACHED:\n`;
+    prompt += `List 4–6 gospel themes actually carried that month (from the message summaries). For each theme write a short paragraph (2–3 sentences). Format: **Theme Name** on its own line, then the paragraph below it.\n\n`;
 
-    prompt += `CONCLUSION (2-3 sentences):\n`;
-    prompt += `- Summarize the month with themes of perseverance, courage, faithful proclamation\n`;
-    prompt += `- Mention resistance in certain places, but the Word continued to be spoken\n`;
-    prompt += `- Emphasize sustained obedience and foundation laid for future growth\n\n`;
+    prompt += `HONEST REFLECTION:\n`;
+    prompt += `1–3 paragraphs. Plain and honest: What pushed back this month? What faced resistance? What could grow? What is unresolved? When noting refusals, record what happened — do not presume what follows after someone says no. Never soften difficulty. Never be discouraging. Simply honest.\n\n`;
 
-    prompt += `Format your response EXACTLY like this:\n`;
-    prompt += `NARRATIVE:\n[3-4 paragraphs here]\n\n`;
-    prompt += `MESSAGE EMPHASIS:\n- [bullet 1]\n- [bullet 2]\n- [bullet 3]\n- [bullet 4]\n- [bullet 5]\n\n`;
-    prompt += `CONCLUSION:\n[2-3 sentences here]`;
+    prompt += `CLOSING WORD:\n`;
+    prompt += `1–2 paragraphs as a historical witness. Reflect on what the month reveals about the work, the field, and God's movement. Do NOT address evangelists by name. Do NOT say "well done" or "thank you". Do NOT add emotional commentary or reassurance. Close the account simply and plainly.\n\n`;
+
+    prompt += `CLOSING SCRIPTURE:\n`;
+    prompt += `One verse that resonates with the specific character of this month. Format exactly: Book Chapter:Verse — "verse text here"\n\n`;
+
+    prompt += `FORMAT YOUR RESPONSE EXACTLY LIKE THIS (these exact headers, nothing else):\n`;
+    prompt += `FROM THE FIELD:\n[3-4 paragraphs]\n\n`;
+    prompt += `ENCOUNTERS FROM THE MONTH:\n[encounter stories]\n\n`;
+    prompt += `WHAT WE PREACHED:\n[themes]\n\n`;
+    prompt += `HONEST REFLECTION:\n[honest reflection]\n\n`;
+    prompt += `CLOSING WORD:\n[1-2 paragraphs]\n\n`;
+    prompt += `CLOSING SCRIPTURE:\n[reference — "verse text"]`;
 
     return prompt;
 }
 
 /**
- * Parse AI response into structured sections
+ * Parse AI response into the 6 SMC Cluster Report sections
  */
 function parseNarrativeResponse(response) {
     const sections = {
-        narrative: '',
-        messageEmphasis: [],
-        conclusion: ''
+        fromTheField: '',
+        encounters: '',
+        whatWePreached: '',
+        honestReflection: '',
+        closingWord: '',
+        closingScripture: ''
     };
 
-    // Extract MESSAGE EMPHASIS section
-    const emphasisMatch = response.match(/MESSAGE EMPHASIS[:\s]+([\s\S]*?)(?=\n\nCONCLUSION|$)/i);
-    if (emphasisMatch) {
-        sections.messageEmphasis = emphasisMatch[1]
-            .split('\n')
-            .filter(line => line.trim().match(/^[-•*]/))
-            .map(line => line.replace(/^[-•*]\s*/, '').trim())
-            .filter(Boolean);
-    }
+    const sectionMap = [
+        { pattern: /^FROM THE FIELD[:\s]*$/im,            key: 'fromTheField' },
+        { pattern: /^ENCOUNTERS FROM THE MONTH[:\s]*$/im, key: 'encounters' },
+        { pattern: /^WHAT WE PREACHED[:\s]*$/im,          key: 'whatWePreached' },
+        { pattern: /^HONEST REFLECTION[:\s]*$/im,         key: 'honestReflection' },
+        { pattern: /^CLOSING WORD[:\s]*$/im,              key: 'closingWord' },
+        { pattern: /^CLOSING SCRIPTURE[:\s]*$/im,         key: 'closingScripture' }
+    ];
 
-    // Extract CONCLUSION section
-    const conclusionMatch = response.match(/CONCLUSION[:\s]+([\s\S]+?)$/i);
-    if (conclusionMatch) {
-        sections.conclusion = conclusionMatch[1].trim();
-    }
-
-    // Extract NARRATIVE (everything before MESSAGE EMPHASIS)
-    const narrativeMatch = response.match(/NARRATIVE[:\s]+([\s\S]*?)(?=\n\nMESSAGE EMPHASIS|$)/i);
-    if (narrativeMatch) {
-        sections.narrative = narrativeMatch[1].trim();
-    } else {
-        // Fallback: take everything before MESSAGE EMPHASIS
-        const emphasisIndex = response.indexOf('MESSAGE EMPHASIS');
-        if (emphasisIndex > 0) {
-            sections.narrative = response.substring(0, emphasisIndex).trim();
-        } else {
-            sections.narrative = response.trim();
+    // Locate each section header in the response
+    const positions = [];
+    for (const { pattern, key } of sectionMap) {
+        const match = pattern.exec(response);
+        if (match) {
+            positions.push({
+                key,
+                headerStart: match.index,
+                contentStart: match.index + match[0].length
+            });
         }
+    }
+    positions.sort((a, b) => a.headerStart - b.headerStart);
+
+    // Extract content between each header and the next
+    for (let i = 0; i < positions.length; i++) {
+        const start = positions[i].contentStart;
+        const end = i + 1 < positions.length
+            ? positions[i + 1].headerStart
+            : response.length;
+        sections[positions[i].key] = response.slice(start, end).trim();
     }
 
     return sections;
 }
 
 /**
- * Generate fallback narrative when AI is not available
+ * Apply fallback narrative content when AI is unavailable — all 6 SMC sections
  */
-function generateFallbackNarrative(reportData) {
+function applyFallbackNarrative(reportData) {
     const name = reportData.assemblyName;
-    let narrative = `In ${reportData.period}, the Gospel was carried faithfully throughout ${name}. `;
-    narrative += `Day after day, the Word of God was proclaimed in ${reportData.locations.join(', ') || 'various locations'}. `;
-    narrative += `The message was not confined to church buildings but was taken into the ordinary flow of daily life.\n\n`;
+    const period = reportData.period;
+    const locs = reportData.locations && reportData.locations.length > 0
+        ? reportData.locations.join(', ')
+        : 'various locations';
+    const saved = reportData.totalSaved || 0;
+    const healed = reportData.totalHealed || 0;
+    const evangelists = reportData.labourers ? reportData.labourers.length : 0;
 
-    narrative += `The preaching throughout the month was marked by clarity and conviction. The call was not merely to religious affiliation, `;
-    narrative += `but to repentance and true freedom from sin through Jesus Christ. Evangelists testified openly of their own deliverance from `;
-    narrative += `immorality, ancestral practices, gossip, bitterness, drug abuse, and other forms of bondage. These testimonies became living proof `;
-    narrative += `that the power of Christ is still able to transform lives.\n\n`;
+    reportData.fromTheField =
+        `In ${period}, we carried the Gospel through ${name}. ` +
+        `We went out into ${locs}, taking the Word beyond church walls and into the daily flow of life. ` +
+        `The work this month was not built on a single event — it was built on repeated, deliberate obedience.\n\n` +
+        `The message we preached called people plainly to repentance and genuine freedom through Jesus Christ. ` +
+        `We testified of our own deliverances — from addiction, from fear, from bitterness, from ancestral bondage. ` +
+        `These testimonies were not performance; they were evidence.\n\n` +
+        `Resistance arose in several places. Noise, disruption, and public indifference met us at times. ` +
+        `But the Word did not stop. We continued with boldness. We prayed for **${healed}** who were sick. ` +
+        `Hearts opened, and the message found space.\n\n` +
+        `We recorded **${saved}** souls saved in ${period}. The seed has been sown. ` +
+        `**${evangelists}** evangelists went out. We were faithful to show up.`;
 
-    narrative += `In several places, resistance arose. There were interruptions, loud music intended to drown out the message, public objections, `;
-    narrative += `and moments of confrontation. Yet the preaching did not cease. The Word continued to be declared with persistence and boldness. `;
-    narrative += `In some instances, those who initially mocked later listened in silence. In others, conversations continued long after the `;
-    narrative += `open-air preaching had ended.\n\n`;
+    reportData.encounters =
+        `We encountered people across various settings this month — markets, transport routes, streets, and open spaces. ` +
+        `In one place, a group stopped to listen. The preaching was direct. Some walked away; others stayed. ` +
+        `We offered prayer to those who remained.\n\n` +
+        `In another encounter, a man who had not heard the Gospel in years listened through the full message. ` +
+        `He did not refuse prayer. We gave him the opportunity and moved on. What he does with it is between him and God.`;
 
-    narrative += `Prayer for the sick accompanied the preaching of the Gospel. Individuals in pain and distress were prayed for across various locations. `;
-    narrative += `These moments of prayer opened hearts and created space for the message of salvation to be received. `;
-    narrative += `Throughout the month, the work reflected steady obedience rather than isolated enthusiasm. The Gospel was heard repeatedly across `;
-    narrative += `key areas, and the seed was sown consistently.`;
+    reportData.whatWePreached =
+        `**Repentance and Remission of Sins**\n` +
+        `We called people plainly to turn — not to religion, but to a genuine break with the patterns of the old life. This message was specific, not general.\n\n` +
+        `**Freedom Through Christ**\n` +
+        `We testified that Jesus delivers from immorality, addiction, ancestral bondage, and spiritual oppression. The testimonies of those who preached gave weight to the message.\n\n` +
+        `**The Holy Spirit as Evidence**\n` +
+        `We declared that a transformed life is the proof of salvation. The presence and work of the Holy Spirit was central to what we preached.\n\n` +
+        `**Judgement and Eternity**\n` +
+        `We did not avoid the sobering reality of accountability before God. This was delivered plainly, without manipulation.\n\n` +
+        `**The Call to Walk Differently**\n` +
+        `We called people not only to a moment of decision, but to a life of genuine holiness and continued obedience to the Holy Spirit.`;
 
-    return narrative;
-}
+    reportData.honestReflection =
+        `Some locations presented consistent resistance this month. Noise and disruption were used to drown out the message ` +
+        `in at least one area. We note this plainly — not every location receives the Word with openness.\n\n` +
+        `We also note that in certain areas, the number of evangelists was thin relative to the size of the field. ` +
+        `This is not a complaint — it is an honest account of the work as it stands.`;
 
-/**
- * Generate fallback message emphasis
- */
-function generateFallbackMessageEmphasis() {
-    return [
-        'Repentance and remission of sins',
-        'Holiness as evidence of salvation',
-        'Christ as the only source of freedom',
-        'A call beyond religious routine',
-        'Preparation for eternity'
-    ];
-}
+    reportData.closingWord =
+        `${period} in ${name} was a month of faithful presence. ` +
+        `The Gospel moved through streets, transport routes, and open spaces — not as a single event, but as repeated obedience.\n\n` +
+        `The record stands: the cluster showed up. They presented the Gospel. ` +
+        `They gave people the chance to respond. The fruit recorded — and the fruit not yet visible — ` +
+        `belongs to the faithfulness of this work, and to the God who causes the growth.`;
 
-/**
- * Generate fallback conclusion
- */
-function generateFallbackConclusion(reportData) {
-    return `${reportData.period} in ${reportData.assemblyName} was marked by perseverance, courage, and faithful proclamation. ` +
-        `Though resistance arose in certain places, the Word continued to be spoken. The Gospel moved through streets and transport routes, ` +
-        `through homes and marketplaces, and into individual hearts. The work was carried out not as a single event, but as sustained obedience. ` +
-        `The fruit recorded reflects continued labour in the field and a foundation laid for future growth.`;
+    reportData.closingScripture =
+        `Mark 16:15 — "Go into all the world and preach the gospel to every creature."`;
+
+    // Legacy aliases
+    reportData.narrative = reportData.fromTheField;
+    reportData.messageEmphasis = reportData.whatWePreached;
+    reportData.conclusion = reportData.closingWord;
 }
 
 // Keep backward compatibility - export old function name pointing to new logic

@@ -95,7 +95,7 @@ export async function generateAndDistributeMonthlyReport() {
                 const summaryMessage = formatAssemblySummaryMessage(report);
 
                 const fileBuffer = fs.readFileSync(pdfPath);
-                const fileName = `Evangelism_Report_${report.assemblyName.replace(/\s+/g, '_')}_${report.period.replace(/ /g, '_')}.pdf`;
+                const fileName = `Field_Report_${report.assemblyName.replace(/\s+/g, '_')}_${report.period.replace(/ /g, '_')}.docx`;
 
                 // Send text summary + PDF to each configured reviewer
                 for (const reviewer of config.reviewerNumbers) {
@@ -109,9 +109,9 @@ export async function generateAndDistributeMonthlyReport() {
                     // Send PDF document
                     await sock.sendMessage(reviewerJid, {
                         document: fileBuffer,
-                        mimetype: 'application/pdf',
+                        mimetype: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
                         fileName: fileName,
-                        caption: `📄 ${report.assemblyName} - ${report.period} Full Report`
+                        caption: `📄 ${report.assemblyName} - ${report.period} Field Report`
                     });
 
                     logger.info(`Report for ${report.assemblyName} sent to reviewer ${reviewerJid}`);

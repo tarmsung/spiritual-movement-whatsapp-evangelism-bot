@@ -194,8 +194,8 @@ async function processMonthSelection(sock, userJid, message, state) {
             return;
         }
 
-        // Generate PDF
-        const pdfPath = await generatePDFReport(reportData);
+        // Generate DOCX
+        const docxPath = await generatePDFReport(reportData);
 
         // Send summary
         let summary = `📊 *${assembly.name} — ${selectedMonth.label} REPORT*\n`;
@@ -215,15 +215,15 @@ async function processMonthSelection(sock, userJid, message, state) {
 
         await sock.sendMessage(userJid, { text: summary });
 
-        // Send PDF
-        const fileBuffer = fs.readFileSync(pdfPath);
-        const fileName = `Report_${assembly.name.replace(/\s+/g, '_')}_${selectedMonth.label.replace(/\s+/g, '_')}.pdf`;
+        // Send DOCX
+        const fileBuffer = fs.readFileSync(docxPath);
+        const fileName = `Report_${assembly.name.replace(/\s+/g, '_')}_${selectedMonth.label.replace(/\s+/g, '_')}.docx`;
 
         await sock.sendMessage(userJid, {
             document: fileBuffer,
-            mimetype: 'application/pdf',
+            mimetype: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
             fileName: fileName,
-            caption: `📄 ${assembly.name} — ${selectedMonth.label} Full Report`
+            caption: `📄 ${assembly.name} — ${selectedMonth.label} Field Report`
         });
 
         logger.info(`Test report for ${assembly.name} (${selectedMonth.label}) sent to ${userJid}`);

@@ -1,8 +1,8 @@
 /**
  * Test Script for Assembly-Based Report Generation
  * 
- * Generates monthly evangelism reports per assembly.
- * Each assembly gets its own separate PDF report.
+ * Generates monthly evangelism field reports (DOCX) per cluster/assembly.
+ * Each cluster gets its own separate DOCX report.
  * 
  * Usage:
  *   node src/utils/generateTestReport.js
@@ -91,8 +91,8 @@ async function runTest() {
             process.exit(0);
         }
 
-        // Generate PDFs for each assembly report
-        const pdfPaths = [];
+        // Generate DOCX for each assembly report
+        const docxPaths = [];
         for (const report of reports) {
             logger.info(`\n--- ${report.assemblyName} ---`);
             logger.info(`  Outreaches: ${report.totalOutreaches}`);
@@ -102,16 +102,16 @@ async function runTest() {
             logger.info(`  Healed: ${report.totalHealed}`);
             logger.info(`  Activity Types: ${report.activityTypes.join(', ')}`);
 
-            const pdfPath = await generatePDFReport(report);
-            pdfPaths.push(pdfPath);
-            logger.info(`  PDF: ${pdfPath}`);
+            const docxPath = await generatePDFReport(report);
+            docxPaths.push(docxPath);
+            logger.info(`  DOCX: ${docxPath}`);
         }
 
         logger.info('\n' + '='.repeat(60));
         logger.info('SUCCESS!');
         logger.info('='.repeat(60));
-        logger.info(`Generated ${pdfPaths.length} assembly report(s):`);
-        pdfPaths.forEach(p => logger.info(`  - ${p}`));
+        logger.info(`Generated ${docxPaths.length} cluster field report(s):`);
+        docxPaths.forEach(p => logger.info(`  - ${p}`));
         logger.info('='.repeat(60));
 
     } catch (error) {
