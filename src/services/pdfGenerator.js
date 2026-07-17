@@ -22,6 +22,7 @@ import {
 import { writeFileSync, existsSync, mkdirSync, readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
+import { createCanvas, loadImage } from 'canvas';
 import logger from '../utils/logger.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -46,6 +47,8 @@ const PALETTES = [
     { primary: '0D1B2A', accent: 'A8B8C8', headerText: 'FFFFFF', accentText: '0D1B2A' }, // midnight blue/silver
     { primary: '1A3A1A', accent: 'C8961A', headerText: 'FFFFFF', accentText: '1A3A1A' }, // forest green/amber
     { primary: '3A3018', accent: 'B05A30', headerText: 'FFFFFF', accentText: '3A3018' }, // olive/terracotta
+    { primary: '2A1A4A', accent: 'A8B8C8', headerText: 'FFFFFF', accentText: '2A1A4A' }, // deep indigo/silver
+    { primary: '5C1A2E', accent: 'B8912A', headerText: 'FFFFFF', accentText: '5C1A2E' }, // warm burgundy/gold
 ];
 
 /**
@@ -126,11 +129,12 @@ function richTextToParagraphs(text, palette, opts = {}) {
 }
 
 // ─── Section heading ─────────────────────────────────────────────────────────
-function sectionHeadingParagraph(title, palette) {
+function sectionHeadingParagraph(title, palette, opts = {}) {
     return new Paragraph({
-        spacing: { before: 360, after: 120 },
+        spacing: { before: opts.pageBreakBefore ? 0 : 360, after: 120 },
+        pageBreakBefore: opts.pageBreakBefore || false,
         border: {
-            bottom: { style: BorderStyle.SINGLE, size: 6, color: palette.primary }
+            bottom: { style: BorderStyle.SINGLE, size: 6, color: palette.accent }
         },
         children: [
             new TextRun({
@@ -146,29 +150,73 @@ function sectionHeadingParagraph(title, palette) {
 }
 
 // ─── Watermark ───────────────────────────────────────────────────────────────
-function buildWatermark() {
-    if (!existsSync(WATERMARK_PATH)) return null;
-    try {
-        const imageData = readFileSync(WATERMARK_PATH);
-        return new ImageRun({
-            data: imageData,
-            transformation: { width: 400, height: 400 },
-            floating: {
-                behindDocument: true,
-                horizontalPosition: {
-                    relative: HorizontalPositionRelativeFrom.PAGE,
-                    align: 'center',
-                },
-                verticalPosition: {
-                    relative: VerticalPositionRelativeFrom.PAGE,
-                    align: 'center',
-                },
-            },
-        });
-    } catch (e) {
-        logger.warn('Could not load watermark image:', e.message);
+// Opacity to apply to the watermark logo (0–1). 0.28 ≈ 28% per the style guide.
+const WATERMARK_OPACITY = 0.28;
+
+// Cache the processed watermark buffer so canvas work only runs once per session.
+let _watermarkCache = null;
+let _watermarkCacheAttempted = false;
+
+/**
+ * Load the watermark logo, composite it at WATERMARK_OPACITY over a white
+ * background using `canvas`, and return the resulting PNG Buffer.
+ * Returns null if the file is missing or processing fails.
+ */
+async function buildWatermarkBuffer() {
+    if (_watermarkCacheAttempted) return _watermarkCache;
+    _watermarkCacheAttempted = true;
+
+    if (!existsSync(WATERMARK_PATH)) {
+        logger.warn('Watermark file not found:', WATERMARK_PATH);
         return null;
     }
+
+    try {
+        const img = await loadImage(WATERMARK_PATH);
+        const SIZE = 400; // output dimensions in pixels (matches ImageRun transformation)
+        const canvas = createCanvas(SIZE, SIZE);
+        const ctx = canvas.getContext('2d');
+
+        // White background so the washed-out logo blends correctly in Word
+        ctx.fillStyle = '#FFFFFF';
+        ctx.fillRect(0, 0, SIZE, SIZE);
+
+        // Draw the logo at reduced opacity
+        ctx.globalAlpha = WATERMARK_OPACITY;
+        ctx.drawImage(img, 0, 0, SIZE, SIZE);
+        ctx.globalAlpha = 1;
+
+        _watermarkCache = canvas.toBuffer('image/png');
+        logger.info(`Watermark processed at ${WATERMARK_OPACITY * 100}% opacity`);
+        return _watermarkCache;
+    } catch (e) {
+        logger.warn('Could not process watermark image:', e.message);
+        return null;
+    }
+}
+
+/**
+ * Build the ImageRun for the watermark, using the pre-baked low-opacity PNG.
+ * Must be called with await.
+ */
+async function buildWatermark() {
+    const imageData = await buildWatermarkBuffer();
+    if (!imageData) return null;
+    return new ImageRun({
+        data: imageData,
+        transformation: { width: 400, height: 400 },
+        floating: {
+            behindDocument: true,
+            horizontalPosition: {
+                relative: HorizontalPositionRelativeFrom.PAGE,
+                align: 'center',
+            },
+            verticalPosition: {
+                relative: VerticalPositionRelativeFrom.PAGE,
+                align: 'center',
+            },
+        },
+    });
 }
 
 // ─── Stats table ─────────────────────────────────────────────────────────────
@@ -183,43 +231,56 @@ function buildStatsTable(reportData, palette) {
 
     const cellWidth = Math.floor(9638 / cols.length); // total usable width in twips / cols
 
-    const cells = cols.map(col => new TableCell({
-        width: { size: cellWidth, type: WidthType.DXA },
-        verticalAlign: VerticalAlign.CENTER,
-        shading: { type: ShadingType.SOLID, fill: palette.primary },
-        margins: { top: 120, bottom: 120, left: 80, right: 80 },
-        borders: {
-            top:    { style: BorderStyle.NONE },
-            bottom: { style: BorderStyle.NONE },
-            left:   { style: BorderStyle.NONE },
-            right:  { style: BorderStyle.SINGLE, size: 4, color: 'FFFFFF' },
-        },
-        children: [
-            new Paragraph({
-                alignment: AlignmentType.CENTER,
-                spacing: { before: 0, after: 40 },
-                children: [new TextRun({
-                    text: col.label,
-                    size: 14,    // 7pt
-                    color: 'AAAAAA',
-                    bold: false,
-                    font: 'Helvetica Neue',
-                    characterSpacing: 20,
-                })]
-            }),
-            new Paragraph({
-                alignment: AlignmentType.CENTER,
-                spacing: { before: 0, after: 0 },
-                children: [new TextRun({
-                    text: String(col.value),
-                    size: 52,    // 26pt
-                    color: 'FFFFFF',
-                    bold: true,
-                    font: 'Palatino Linotype',
-                })]
-            }),
-        ]
-    }));
+    const cells = cols.map((col, idx) => {
+        // Alternate fills: even index = primary, odd index = accent
+        const isAccent = idx % 2 === 1;
+        const cellFill  = isAccent ? palette.accent  : palette.primary;
+        // Label colour: muted on dark cells, slightly darker muted on accent cells
+        const labelColor = isAccent ? '555555' : 'AAAAAA';
+        // Value colour: always white on primary; dark on light accent cells
+        // We check if accent is light (starts with F or E or high-brightness hex)
+        const isLightAccent = /^[EFef]/.test(palette.accent);
+        const valueColor = isAccent && isLightAccent ? palette.primary : 'FFFFFF';
+
+        return new TableCell({
+            width: { size: cellWidth, type: WidthType.DXA },
+            verticalAlign: VerticalAlign.BOTTOM,
+            shading: { type: ShadingType.SOLID, fill: cellFill },
+            margins: { top: 120, bottom: 120, left: 80, right: 80 },
+            borders: {
+                top:    { style: BorderStyle.NONE },
+                bottom: { style: BorderStyle.NONE },
+                left:   { style: BorderStyle.NONE },
+                // Thin divider in accent colour between cells
+                right:  { style: BorderStyle.SINGLE, size: 6, color: palette.accent },
+            },
+            children: [
+                new Paragraph({
+                    alignment: AlignmentType.CENTER,
+                    spacing: { before: 0, after: 40 },
+                    children: [new TextRun({
+                        text: col.label,
+                        size: 14,    // 7pt
+                        color: labelColor,
+                        bold: false,
+                        font: 'Helvetica Neue',
+                        characterSpacing: 20,
+                    })]
+                }),
+                new Paragraph({
+                    alignment: AlignmentType.CENTER,
+                    spacing: { before: 0, after: 0 },
+                    children: [new TextRun({
+                        text: String(col.value),
+                        size: 52,    // 26pt
+                        color: valueColor,
+                        bold: true,
+                        font: 'Palatino Linotype',
+                    })]
+                }),
+            ]
+        });
+    });
 
     return new Table({
         width: { size: 100, type: WidthType.PERCENTAGE },
@@ -259,7 +320,7 @@ function buildScriptureBlock(text, palette) {
  */
 async function buildDocxReport(reportData) {
     const palette = pickPalette(reportData.period || '');
-    const watermarkRun = buildWatermark();
+    const watermarkRun = await buildWatermark();
 
     // ── Helper: build a watermarked header paragraph for each page ──
     const watermarkHeader = watermarkRun
@@ -335,7 +396,7 @@ async function buildDocxReport(reportData) {
 
     // ── Section 4: Encounters from the Month ──────────────────────
     const encountersBlock = [
-        sectionHeadingParagraph('Encounters from the Month', palette),
+        sectionHeadingParagraph('Encounters from the Month', palette, { pageBreakBefore: true }),
         ...richTextToParagraphs(reportData.encounters || '', palette),
     ];
 
@@ -344,20 +405,20 @@ async function buildDocxReport(reportData) {
         ? reportData.whatWePreached.join('\n\n')
         : (reportData.whatWePreached || '');
     const preachedBlock = [
-        sectionHeadingParagraph('What We Preached', palette),
+        sectionHeadingParagraph('What We Preached', palette, { pageBreakBefore: true }),
         ...richTextToParagraphs(preachedText, palette),
     ];
 
     // ── Section 6: Honest Reflection ───────────────────────────────
     const reflectionBlock = [
-        sectionHeadingParagraph('Honest Reflection', palette),
+        sectionHeadingParagraph('Honest Reflection', palette, { pageBreakBefore: true }),
         ...richTextToParagraphs(reportData.honestReflection || '', palette),
     ];
 
     // ── Section 7: Closing Word ────────────────────────────────────
     const closingWordText = reportData.closingWord || reportData.conclusion || '';
     const closingWordBlock = [
-        sectionHeadingParagraph('Closing Word', palette),
+        sectionHeadingParagraph('Closing Word', palette, { pageBreakBefore: true }),
         ...richTextToParagraphs(closingWordText, palette),
     ];
 
