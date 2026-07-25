@@ -3,7 +3,7 @@ import { handleGroupMessage } from './groupMessageHandler.js';
 import { extractPhone } from '../utils/helpers.js';
 import { getUpcomingEvents, getNextEvent, isAdmin, isSupervisor } from '../database/db.js';
 import { formatCalendarDate } from '../utils/helpers.js';
-import { lidToPhone, isSavedContact } from './connection.js';
+import { lidToPhone, isSavedContact, rememberLidMapping } from './connection.js';
 import { handleDmMenu } from './menus/dmMenuHandler.js';
 
 
@@ -24,23 +24,26 @@ export async function handleMessage(sock, msg, messageText) {
     }
 
     // --- DM Handling ---
-    // If the sender is a LID (@lid), resolve it to the real phone JID using our contact cache.
-    // If cache misses, also try msg.key.remoteJidAlt which WhatsApp sometimes provides directly.
+    // If the sender is a LID (@lid), resolve it to the real phone JID.
+    // Sources, in order of preference:
+    //   1. our persisted LID cache (populated from contact syncs and live traffic)
+    //   2. msg.key.senderPn — the real phone JID WhatsApp attaches to the message
+    //      itself (sender_pn stanza attr). Authoritative and needs no contact sync.
     let senderJid = remoteJid;
     if (senderJid.endsWith('@lid')) {
-        const cached = lidToPhone[senderJid];
-        const alt = msg.key.remoteJidAlt;
+        const lid = senderJid;                  // keep the original LID as the cache key
+        const cached = lidToPhone[lid];
+        const senderPn = msg.key.senderPn;
 
         if (cached) {
-            logger.info(`[DM] Resolved LID ${senderJid} → ${cached} (cache)`);
+            logger.info(`[DM] Resolved LID ${lid} → ${cached} (cache)`);
             senderJid = cached;
-        } else if (alt) {
-            logger.info(`[DM] Resolved LID ${senderJid} → ${alt} (remoteJidAlt)`);
-            senderJid = alt;
-            // Populate cache so future messages are instant
-            lidToPhone[senderJid] = alt;
+        } else if (senderPn) {
+            logger.info(`[DM] Resolved LID ${lid} → ${senderPn} (senderPn)`);
+            senderJid = senderPn;
+            rememberLidMapping(lid, senderPn);  // persist so future messages are instant
         } else {
-            logger.warn(`[DM] Unresolved LID: ${senderJid} — contact not synced yet, treating as non-admin`);
+            logger.warn(`[DM] Unresolved LID: ${lid} — treating as non-admin. If this is an admin, add ${extractPhone(lid)} to ADMIN_LIDS in .env`);
         }
     }
 

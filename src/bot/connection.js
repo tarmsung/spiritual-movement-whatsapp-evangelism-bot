@@ -51,6 +51,41 @@ function saveSavedContacts() {
 }
 
 /**
+ * Learn a LID → phone JID mapping and persist it to disk.
+ * Always use this instead of mutating lidToPhone directly, otherwise the
+ * mapping is lost on restart.
+ * @param {string} lid - The @lid JID (cache key)
+ * @param {string} phoneJid - The real phone JID (@s.whatsapp.net)
+ */
+export function rememberLidMapping(lid, phoneJid) {
+    if (!lid || !phoneJid) return;
+    if (!lid.endsWith('@lid')) return;          // guard against phone→phone self-mappings
+    if (lidToPhone[lid] === phoneJid) return;   // already known, skip the disk write
+    lidToPhone[lid] = phoneJid;
+    saveLidCache();
+    logger.info(`[CONNECTION] Learned LID mapping ${lid} → ${phoneJid}`);
+}
+
+/**
+ * Harvest LID → phone mappings that WhatsApp attaches to incoming message keys.
+ * DMs carry senderLid/senderPn; group messages carry participantLid/participantPn
+ * (from the sender_pn / participant_pn stanza attributes). This warms the cache
+ * from live traffic, so resolution no longer depends on a contact sync landing.
+ * @param {Object} key - msg.key
+ */
+function captureLidFromKey(key) {
+    if (!key) return;
+
+    // DM: remoteJid is the LID when the chat is LID-addressed
+    const dmLid = key.senderLid || (key.remoteJid?.endsWith('@lid') ? key.remoteJid : null);
+    rememberLidMapping(dmLid, key.senderPn);
+
+    // Group: participant is the LID when the group is LID-addressed
+    const groupLid = key.participantLid || (key.participant?.endsWith('@lid') ? key.participant : null);
+    rememberLidMapping(groupLid, key.participantPn);
+}
+
+/**
  * Check if a JID is saved in our contact list
  * @param {string} jid 
  * @returns {boolean}
@@ -188,6 +223,10 @@ export async function startWhatsAppConnection(messageHandler) {
             try {
                 const remoteJid = msg.key.remoteJid;
                 const isGroup = remoteJid?.endsWith('@g.us');
+
+                // Learn any LID → phone mapping this message carries, before any
+                // early-continue below can skip it.
+                captureLidFromKey(msg.key);
 
                 // Check for "Delete for Everyone" — Baileys delivers this as a protocolMessage type 0 (REVOKE)
                 if (msg.message?.protocolMessage?.type === 0 && isGroup) {

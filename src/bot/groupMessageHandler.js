@@ -2,6 +2,7 @@ import { isEvangelismReport, parseReport, validateParsedReport } from '../utils/
 import { getAssemblyByGroupJid, createGroupReport, getMembersByIds } from '../database/db.js';
 import { sendUpcomingEvents, sendNextEvent } from './messageHandler.js';
 import { extractPhone } from '../utils/helpers.js';
+import { lidToPhone } from './connection.js';
 import logger from '../utils/logger.js';
 
 /**
@@ -12,7 +13,24 @@ import logger from '../utils/logger.js';
  */
 export async function handleGroupMessage(sock, msg, messageText) {
     const groupJid = msg.key.remoteJid;
+    // senderJid is kept as-is (possibly a @lid) because it is what mentions must
+    // target in LID-addressed groups.
     const senderJid = msg.key.participant || msg.participant;
+
+    // Resolve the sender's real phone number for storage and display. In LID-addressed
+    // groups the participant is an opaque @lid, whose digits are NOT a phone number —
+    // storing those as reporter_phone corrupts the record. WhatsApp supplies the real
+    // phone JID on the message key (participant_pn stanza attr); fall back to the cache.
+    let senderPhoneJid = senderJid;
+    if (senderJid?.endsWith('@lid')) {
+        const resolved = lidToPhone[senderJid] || msg.key.participantPn;
+        if (resolved) {
+            senderPhoneJid = resolved;
+        } else {
+            logger.warn(`[GROUP] Unresolved participant LID: ${senderJid} — storing LID digits as reporter_phone`);
+        }
+    }
+    const senderPhone = extractPhone(senderPhoneJid) || 'unknown';
 
     // Ignore messages sent by the bot itself
     if (msg.key.fromMe) {
@@ -56,7 +74,7 @@ export async function handleGroupMessage(sock, msg, messageText) {
             logger.warn(`[GROUP] Invalid evangelism report from ${senderJid}:`, validation.errors);
 
             const errorMsg =
-                `❌ *Evangelism Report Error* @${extractPhone(senderJid)}\n\n` +
+                `❌ *Evangelism Report Error* @${senderPhone}\n\n` +
                 `The report could not be saved due to the following issues:\n` +
                 validation.errors.map(err => `• ${err}`).join('\n') +
                 `\n\n_Please check the format and try again._`;
@@ -89,7 +107,7 @@ export async function handleGroupMessage(sock, msg, messageText) {
         if (invalidTokens.length > 0) {
             const invalidList = invalidTokens.map(t => `• ${t}`).join('\n');
             const errorMsg =
-                `❌ *Evangelism Report Error* @${extractPhone(senderJid)}\n\n` +
+                `❌ *Evangelism Report Error* @${senderPhone}\n\n` +
                 `You provided names instead of Member IDs for the Team field:\n` +
                 `${invalidList}\n\n` +
                 `*Only numeric Member IDs are allowed.* Please replace the names with the correct IDs and resubmit your report.\n` +
@@ -110,7 +128,7 @@ export async function handleGroupMessage(sock, msg, messageText) {
             if (unknownIds.length > 0) {
                 const idList = unknownIds.map(id => `• ${id}`).join('\n');
                 const errorMsg =
-                    `❌ *Evangelism Report Error* @${extractPhone(senderJid)}\n\n` +
+                    `❌ *Evangelism Report Error* @${senderPhone}\n\n` +
                     `The following Team IDs were not found in the database:\n` +
                     `${idList}\n\n` +
                     `Please check the IDs and resubmit your report.\n` +
@@ -143,9 +161,6 @@ export async function handleGroupMessage(sock, msg, messageText) {
             });
             return;
         }
-
-        // Extract sender phone number
-        const senderPhone = extractPhone(senderJid) || 'unknown';
 
         // If reporter_name is missing, use the sender's phone number
         if (!parsedReport.reporter_name || parsedReport.reporter_name.trim() === '') {
