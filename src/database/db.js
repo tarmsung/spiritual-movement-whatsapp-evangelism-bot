@@ -121,8 +121,11 @@ export async function isAdmin(phone) {
     return true;
   }
 
-  // Check ADMIN_LIDS env var (LIDs that couldn't be auto-resolved to phone numbers)
-  if (config.adminLids.includes(cleanPhone)) {
+  // Check ADMIN_LIDS env var (LIDs that couldn't be auto-resolved to phone numbers).
+  // Normalize configured LIDs through extractPhone (like adminNumbers above) so that
+  // either the raw "81797987700752@lid" copied straight from the logs OR the bare
+  // "81797987700752" matches — otherwise the documented escape hatch silently fails.
+  if (config.adminLids.map(l => extractPhone(l)).includes(cleanPhone)) {
     adminCache.set(cleanPhone, { isAdmin: true, timestamp: Date.now() });
     return true;
   }
