@@ -23,14 +23,14 @@ export async function handleExecutorMenu(sock, userJid, messageText, currentStep
     const msg = messageText.trim();
     const normalizedMessage = msg.toLowerCase();
 
-    // Global cancel
-    if (normalizedMessage === 'cancel') {
-        await clearUserFormState(phone);
-        await sock.sendMessage(userJid, { text: CANCEL_MESSAGE });
-        return;
-    }
-
     try {
+        // Global cancel
+        if (normalizedMessage === 'cancel') {
+            await clearUserFormState(phone);
+            await sock.sendMessage(userJid, { text: CANCEL_MESSAGE });
+            return;
+        }
+
         switch (currentStep) {
 
             // ── MAIN MENU ─────────────────────────────────────────────────────
@@ -361,8 +361,17 @@ export async function handleExecutorMenu(sock, userJid, messageText, currentStep
         }
     } catch (error) {
         logger.error(`Error in Executor Menu for ${phone}:`, error);
-        await clearUserFormState(phone);
-        await sock.sendMessage(userJid, { text: '❌ An error occurred. Session has been reset.' });
+        // Reply and cleanup are independently guarded — see handleDmMenu for why.
+        try {
+            await sock.sendMessage(userJid, { text: '❌ An error occurred. Session has been reset.' });
+        } catch (sendError) {
+            logger.error(`Failed to send error reply to ${phone}:`, sendError);
+        }
+        try {
+            await clearUserFormState(phone);
+        } catch (clearError) {
+            logger.error(`Failed to clear form state for ${phone} during error recovery:`, clearError);
+        }
     }
 }
 

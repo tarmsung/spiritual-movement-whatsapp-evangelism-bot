@@ -20,14 +20,14 @@ export async function handleMemberMenu(sock, userJid, messageText, currentStep, 
     const phone = extractPhone(userJid);
     const normalizedMessage = messageText.trim().toLowerCase();
 
-    // Global cancel
-    if (normalizedMessage === 'cancel' || normalizedMessage === 'exit') {
-        await clearUserFormState(phone);
-        await sock.sendMessage(userJid, { text: CANCEL_MESSAGE });
-        return;
-    }
-
     try {
+        // Global cancel
+        if (normalizedMessage === 'cancel' || normalizedMessage === 'exit') {
+            await clearUserFormState(phone);
+            await sock.sendMessage(userJid, { text: CANCEL_MESSAGE });
+            return;
+        }
+
         switch (currentStep) {
 
             // ── SHOW MAIN MENU ────────────────────────────────────────────────
@@ -97,8 +97,17 @@ export async function handleMemberMenu(sock, userJid, messageText, currentStep, 
         }
     } catch (error) {
         logger.error(`Error in Member Menu for ${phone}:`, error);
-        await clearUserFormState(phone);
-        await sock.sendMessage(userJid, { text: '❌ An error occurred. Please type *Menu* to try again.' });
+        // Reply and cleanup are independently guarded — see handleDmMenu for why.
+        try {
+            await sock.sendMessage(userJid, { text: '❌ An error occurred. Please type *Menu* to try again.' });
+        } catch (sendError) {
+            logger.error(`Failed to send error reply to ${phone}:`, sendError);
+        }
+        try {
+            await clearUserFormState(phone);
+        } catch (clearError) {
+            logger.error(`Failed to clear form state for ${phone} during error recovery:`, clearError);
+        }
     }
 }
 
