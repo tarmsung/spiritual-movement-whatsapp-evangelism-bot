@@ -359,9 +359,15 @@ export async function handleExecutorMenu(sock, userJid, messageText, currentStep
 
             // ── SM YOUTH ──────────────────────────────────────────────────────
             case MENU_STEPS.EXECUTOR_SM_YOUTH_MAIN: {
-                // Entry point: send cluster selection
-                await sendClusterSelection(sock, userJid, 'SM Youth — Select Cluster');
-                await saveUserFormState(phone, MENU_STEPS.EXECUTOR_SM_YOUTH_CLUSTER_SELECT, {});
+                if (normalizedMessage === '1') {
+                    await sendClusterSelection(sock, userJid, 'SM Youth — Select Cluster');
+                    await saveUserFormState(phone, MENU_STEPS.EXECUTOR_SM_YOUTH_CLUSTER_SELECT, {});
+                } else if (normalizedMessage === 'cancel') {
+                    await clearUserFormState(phone);
+                    await sock.sendMessage(userJid, { text: CANCEL_MESSAGE });
+                } else {
+                    await sock.sendMessage(userJid, { text: '❌ Please reply with *1* to continue or *cancel* to exit.' });
+                }
                 break;
             }
 
@@ -501,8 +507,8 @@ async function sendSMYouthMenu(sock, userJid) {
     menuText += `Generate a Youth Convention field example extraction document.\n\n`;
     menuText += `Claude will read the selected cluster's field reports and extract real examples of:\n`;
     menuText += `✋ Rejection  |  🚪 Failure  |  💬 Anxiety  |  ⏳ Delay\n\n`;
-    menuText += `Select your cluster on the next screen.\n\n`;
-    menuText += `_Type "cancel" at any time to exit._`;
+    menuText += `You will select a cluster and a month. A Word document will be sent to you.\n\n`;
+    menuText += `Reply *1* to continue or *cancel* to exit.`;
     await sock.sendMessage(userJid, { text: menuText });
 }
 
