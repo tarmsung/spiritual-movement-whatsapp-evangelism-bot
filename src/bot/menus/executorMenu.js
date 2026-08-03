@@ -57,8 +57,12 @@ export async function handleExecutorMenu(sock, userJid, messageText, currentStep
                         await sendClusterSelection(sock, userJid, 'View Cluster');
                         await saveUserFormState(phone, MENU_STEPS.EXECUTOR_VIEW_CLUSTER_SELECT, formData);
                         break;
+                    case '5':
+                        await sendSMYouthMenu(sock, userJid);
+                        await saveUserFormState(phone, MENU_STEPS.EXECUTOR_SM_YOUTH_MAIN, formData);
+                        break;
                     default:
-                        await sock.sendMessage(userJid, { text: '❌ Invalid choice. Please reply with 1, 2, 3, or 4.' });
+                        await sock.sendMessage(userJid, { text: '❌ Invalid choice. Please reply with 1, 2, 3, 4, or 5.' });
                         break;
                 }
                 break;
@@ -353,6 +357,96 @@ export async function handleExecutorMenu(sock, userJid, messageText, currentStep
                 break;
             }
 
+            // ── SM YOUTH ──────────────────────────────────────────────────────
+            case MENU_STEPS.EXECUTOR_SM_YOUTH_MAIN: {
+                // Entry point: send cluster selection
+                await sendClusterSelection(sock, userJid, 'SM Youth — Select Cluster');
+                await saveUserFormState(phone, MENU_STEPS.EXECUTOR_SM_YOUTH_CLUSTER_SELECT, {});
+                break;
+            }
+
+            case MENU_STEPS.EXECUTOR_SM_YOUTH_CLUSTER_SELECT: {
+                const assemblies = await getAllAssemblies();
+                const choice = parseInt(normalizedMessage);
+                if (isNaN(choice) || choice < 1 || choice > assemblies.length) {
+                    await sock.sendMessage(userJid, { text: `❌ Please reply with a number between 1 and ${assemblies.length}.` });
+                    return;
+                }
+                const selectedAssembly = assemblies[choice - 1];
+                const newFormData = { assemblyId: selectedAssembly.id, assemblyName: selectedAssembly.name };
+                await sendMonthSelection(sock, userJid);
+                await saveUserFormState(phone, MENU_STEPS.EXECUTOR_SM_YOUTH_MONTH, newFormData);
+                break;
+            }
+
+            case MENU_STEPS.EXECUTOR_SM_YOUTH_MONTH: {
+                const months = getRecentMonths(6);
+                const monthChoice = parseInt(normalizedMessage);
+                if (isNaN(monthChoice) || monthChoice < 1 || monthChoice > months.length) {
+                    await sock.sendMessage(userJid, { text: `❌ Please reply with a number between 1 and ${months.length}.` });
+                    return;
+                }
+                const selectedMonth = months[monthChoice - 1];
+
+                await sock.sendMessage(userJid, {
+                    text: `🔥 *SM YOUTH*\n\nGenerating Youth Convention extraction for *${formData.assemblyName}* (${selectedMonth.label})...\n\n_This may take a moment — Claude is reading the field reports._`
+                });
+
+                try {
+                    const { generateSmYouthReport } = await import('../../services/smYouthReportService.js');
+                    const { generateSmYouthDocx }   = await import('../../services/pdfGenerator.js');
+                    const fs = await import('fs');
+
+                    const reportData = await generateSmYouthReport(
+                        { id: formData.assemblyId, name: formData.assemblyName },
+                        selectedMonth.start,
+                        selectedMonth.end,
+                        selectedMonth.label
+                    );
+
+                    if (reportData.empty) {
+                        await sock.sendMessage(userJid, {
+                            text: `⚠️ No evangelism reports found for *${formData.assemblyName}* in *${selectedMonth.label}*.\n\nThere are no field reports to extract examples from.${ADMIN_NAV_FOOTER}`
+                        });
+                        await clearUserFormState(phone);
+                        return;
+                    }
+
+                    const docxPath = await generateSmYouthDocx(reportData);
+
+                    // Send a brief preview summary
+                    let summary = `🔥 *SM YOUTH — ${formData.assemblyName.toUpperCase()} · ${selectedMonth.label}*\n`;
+                    summary += '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n';
+                    summary += `📊 Source Reports: ${reportData.totalReports}\n\n`;
+                    summary += `The document contains examples under:\n`;
+                    summary += `✋ Rejection\n`;
+                    summary += `🚪 Failure\n`;
+                    summary += `💬 Anxiety\n`;
+                    summary += `⏳ Delay\n`;
+                    summary += `🔍 Cross-Cluster Observation\n\n`;
+                    summary += '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━';
+                    await sock.sendMessage(userJid, { text: summary });
+
+                    const fileBuffer = fs.readFileSync(docxPath);
+                    const fileName = `SMYouth_${formData.assemblyName.replace(/\s+/g, '_')}_${selectedMonth.label.replace(/\s+/g, '_')}.docx`;
+                    await sock.sendMessage(userJid, {
+                        document: fileBuffer,
+                        mimetype: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                        fileName,
+                        caption: `📄 SM Youth · ${formData.assemblyName} · ${selectedMonth.label} — Field Example Extraction`
+                    });
+                } catch (genError) {
+                    logger.error(`[SMYouth] Error generating document for ${formData.assemblyName}:`, genError);
+                    await sock.sendMessage(userJid, {
+                        text: `❌ Failed to generate the SM Youth document.\n\nError: ${genError.message}\n\nPlease try again or contact an administrator.`
+                    });
+                }
+
+                await sock.sendMessage(userJid, { text: ADMIN_NAV_FOOTER });
+                await clearUserFormState(phone);
+                break;
+            }
+
             // ── DEFAULT ───────────────────────────────────────────────────────
             default:
                 await clearUserFormState(phone);
@@ -384,7 +478,8 @@ async function sendExecutorMainMenu(sock, userJid) {
     menuText += `1️⃣ Fetch Data\n`;
     menuText += `2️⃣ Add Member\n`;
     menuText += `3️⃣ Disable Member\n`;
-    menuText += `4️⃣ View Cluster\n\n`;
+    menuText += `4️⃣ View Cluster\n`;
+    menuText += `5️⃣ SM Youth\n\n`;
     menuText += `_Reply "cancel" at any time to exit._`;
     await sock.sendMessage(userJid, { text: menuText });
 }
@@ -397,6 +492,17 @@ async function sendFetchDataSubMenu(sock, userJid) {
     menuText += `2️⃣ Reports summary\n`;
     menuText += `3️⃣ Full Field Report (.docx)\n\n`;
     menuText += `_Reply with 1, 2, or 3._`;
+    await sock.sendMessage(userJid, { text: menuText });
+}
+
+async function sendSMYouthMenu(sock, userJid) {
+    let menuText = `🔥 *SM YOUTH*\n`;
+    menuText += `────────────────────\n\n`;
+    menuText += `Generate a Youth Convention field example extraction document.\n\n`;
+    menuText += `Claude will read the selected cluster's field reports and extract real examples of:\n`;
+    menuText += `✋ Rejection  |  🚪 Failure  |  💬 Anxiety  |  ⏳ Delay\n\n`;
+    menuText += `Select your cluster on the next screen.\n\n`;
+    menuText += `_Type "cancel" at any time to exit._`;
     await sock.sendMessage(userJid, { text: menuText });
 }
 

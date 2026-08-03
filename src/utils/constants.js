@@ -27,6 +27,11 @@ export const MENU_STEPS = {
 
     // View Cluster flow (140)
     EXECUTOR_VIEW_CLUSTER_SELECT: 140,
+
+    // SM Youth workflow (150+)
+    EXECUTOR_SM_YOUTH_MAIN:           150,
+    EXECUTOR_SM_YOUTH_CLUSTER_SELECT: 151,
+    EXECUTOR_SM_YOUTH_MONTH:          152,
 };
 
 /**

@@ -512,3 +512,199 @@ export async function generatePDFReport(reportData) {
         throw error;
     }
 }
+
+// ─── SM Youth Convention DOCX ────────────────────────────────────────────────
+
+/**
+ * Build a DOCX document for the SM Youth Convention extraction report.
+ * Organises the four themes (Rejection, Failure, Anxiety, Delay) plus
+ * the cross-cluster observation into a clean, branded document.
+ *
+ * @param {Object} data
+ * @param {string} data.assemblyName
+ * @param {string} data.period
+ * @param {string} data.startDate
+ * @param {string} data.endDate
+ * @param {number} data.totalReports
+ * @param {string} data.rejection
+ * @param {string} data.failure
+ * @param {string} data.anxiety
+ * @param {string} data.delay
+ * @param {string} data.crossCluster
+ * @returns {Promise<string>} Absolute path to the generated .docx file
+ */
+export async function generateSmYouthDocx(data) {
+    const palette    = pickPalette(data.period || 'youth');
+    const watermarkRun = await buildWatermark();
+
+    const watermarkHeader = watermarkRun
+        ? new Header({ children: [new Paragraph({ children: [watermarkRun] })] })
+        : undefined;
+
+    // ── Cover block ─────────────────────────────────────────────────
+    const coverBlock = [
+        new Paragraph({
+            alignment: AlignmentType.CENTER,
+            spacing: { before: 0, after: 60 },
+            children: [new TextRun({
+                text: 'SPIRITUAL MOVEMENT CRUSADERS',
+                size: 18,
+                color: '888888',
+                characterSpacing: 60,
+                font: 'Palatino Linotype',
+            })]
+        }),
+        new Paragraph({
+            alignment: AlignmentType.CENTER,
+            spacing: { before: 60, after: 60 },
+            children: [new TextRun({
+                text: 'SM YOUTH',
+                size: 52,
+                bold: true,
+                color: palette.primary,
+                font: 'Palatino Linotype',
+            })]
+        }),
+        new Paragraph({
+            alignment: AlignmentType.CENTER,
+            spacing: { before: 60, after: 60 },
+            children: [new TextRun({
+                text: 'Field Example Extraction',
+                size: 28,
+                color: '444444',
+                font: 'Palatino Linotype',
+            })]
+        }),
+        new Paragraph({
+            alignment: AlignmentType.CENTER,
+            spacing: { before: 60, after: 60 },
+            children: [new TextRun({
+                text: `${data.assemblyName} · ${data.period}`,
+                size: 22,
+                color: '666666',
+                font: 'Palatino Linotype',
+            })]
+        }),
+        new Paragraph({
+            alignment: AlignmentType.CENTER,
+            spacing: { before: 40, after: 60 },
+            children: [new TextRun({
+                text: '"Evangelism: Facing Rejection, Failure, Anxiety and Delay with God"',
+                italics: true,
+                size: 20,
+                color: '888888',
+                font: 'Palatino Linotype',
+            })]
+        }),
+        new Paragraph({
+            alignment: AlignmentType.CENTER,
+            spacing: { before: 40, after: 60 },
+            children: [new TextRun({
+                text: `Source reports: ${data.totalReports}`,
+                size: 18,
+                color: 'AAAAAA',
+                font: 'Palatino Linotype',
+            })]
+        }),
+        // Divider
+        new Paragraph({
+            spacing: { before: 0, after: 320 },
+            border: { bottom: { style: BorderStyle.SINGLE, size: 8, color: palette.primary } },
+            children: []
+        }),
+    ];
+
+    // ── Theme sections ───────────────────────────────────────────────
+    const THEME_ICONS = {
+        rejection:    '✋ REJECTION',
+        failure:      '🚪 FAILURE',
+        anxiety:      '💬 ANXIETY',
+        delay:        '⏳ DELAY',
+        crossCluster: '🔍 CROSS-CLUSTER OBSERVATION',
+    };
+
+    const themeOrder = ['rejection', 'failure', 'anxiety', 'delay', 'crossCluster'];
+
+    const themeBlocks = themeOrder.flatMap((key, idx) => {
+        const text  = data[key];
+        const title = THEME_ICONS[key];
+        return [
+            sectionHeadingParagraph(title, palette, { pageBreakBefore: idx > 0 }),
+            ...(text
+                ? richTextToParagraphs(text, palette)
+                : [new Paragraph({
+                    spacing: { before: 60, after: 60 },
+                    children: [new TextRun({
+                        text: '(No examples found for this theme in the selected reports.)',
+                        italics: true,
+                        size: 22,
+                        color: '888888',
+                        font: 'Palatino Linotype',
+                    })]
+                })]
+            ),
+        ];
+    });
+
+    // ── Footer ───────────────────────────────────────────────────────
+    const footerParagraph = new Footer({
+        children: [new Paragraph({
+            alignment: AlignmentType.CENTER,
+            children: [
+                new TextRun({
+                    text: `SM Youth · ${data.assemblyName} · ${data.period} · `,
+                    size: 16,
+                    color: 'AAAAAA',
+                    font: 'Palatino Linotype',
+                }),
+                new TextRun({
+                    children: [PageNumber.CURRENT],
+                    size: 16,
+                    color: 'AAAAAA',
+                    font: 'Palatino Linotype',
+                }),
+            ]
+        })]
+    });
+
+    // ── Assemble document ────────────────────────────────────────────
+    const doc = new Document({
+        styles: {
+            default: {
+                document: {
+                    run: { font: 'Palatino Linotype', size: 22, color: '222222' },
+                    paragraph: { spacing: { line: 340 } }
+                }
+            }
+        },
+        sections: [{
+            properties: {
+                page: {
+                    margin: {
+                        top:    convertInchesToTwip(1),
+                        bottom: convertInchesToTwip(1),
+                        left:   convertInchesToTwip(1.1),
+                        right:  convertInchesToTwip(1.1),
+                    }
+                }
+            },
+            headers: watermarkHeader ? { default: watermarkHeader } : undefined,
+            footers: { default: footerParagraph },
+            children: [
+                ...coverBlock,
+                ...themeBlocks,
+            ]
+        }]
+    });
+
+    // ── Write to disk ────────────────────────────────────────────────
+    const assemblySlug = (data.assemblyName || 'cluster').replace(/\s+/g, '_');
+    const filename  = `sm_youth_${assemblySlug}_${data.startDate}_to_${data.endDate}.docx`;
+    const filepath  = join(REPORTS_DIR, filename);
+
+    logger.info(`[SMYouth] Generating DOCX: ${filename}`);
+    const buffer = await Packer.toBuffer(doc);
+    writeFileSync(filepath, buffer);
+    logger.info(`[SMYouth] DOCX generated: ${filepath}`);
+    return filepath;
+}
