@@ -1,7 +1,8 @@
 import makeWASocket, {
     DisconnectReason,
     useMultiFileAuthState,
-    fetchLatestBaileysVersion
+    fetchLatestBaileysVersion,
+    S_WHATSAPP_NET
 } from '@whiskeysockets/baileys';
 import { Boom } from '@hapi/boom';
 import qrcode from 'qrcode-terminal';
@@ -115,12 +116,20 @@ function startWatchdog(currentSock, messageHandler) {
     stopWatchdog();
     watchdogInterval = setInterval(async () => {
         try {
-            await Promise.race([
-                currentSock.sendPresenceUpdate('available'),
-                new Promise((_, reject) =>
-                    setTimeout(() => reject(new Error('watchdog probe timed out')), WATCHDOG_PROBE_TIMEOUT_MS)
-                )
-            ]);
+            // NOTE: sendPresenceUpdate() is NOT a valid probe — Baileys silently
+            // no-ops it ("no name present, ignoring presence update request")
+            // whenever authState.creds.me.name isn't set, so it never actually
+            // touches the network and would never catch a dead connection.
+            // Use the same raw ping IQ Baileys' own internal keepalive sends,
+            // which genuinely round-trips and rejects/times out on a dead socket.
+            await currentSock.query(
+                {
+                    tag: 'iq',
+                    attrs: { to: S_WHATSAPP_NET, type: 'get', xmlns: 'w:p' },
+                    content: [{ tag: 'ping', attrs: {} }]
+                },
+                WATCHDOG_PROBE_TIMEOUT_MS
+            );
         } catch (err) {
             logger.error(`[WATCHDOG] Connection appears dead (${err.message}) — forcing reconnect.`);
             stopWatchdog();
