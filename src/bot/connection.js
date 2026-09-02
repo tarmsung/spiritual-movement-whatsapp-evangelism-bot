@@ -99,6 +99,52 @@ export function isSavedContact(jid) {
 
 let sock = null;
 
+// ─── Connection watchdog ──────────────────────────────────────────────────
+// Baileys' 'close' event does not always fire when the underlying WebSocket
+// dies silently (dropped TCP connection, VPS NAT/firewall timeout, network
+// blip). When that happens the socket just hangs forever with no error and
+// no reconnect — the process looks "online" in PM2 but never receives
+// another message. This watchdog periodically probes the live connection
+// with a cheap presence update; if it doesn't complete in time, we force-close
+// the socket ourselves so the existing 'close' handler's reconnect logic runs.
+let watchdogInterval = null;
+const WATCHDOG_CHECK_INTERVAL_MS = 3 * 60 * 1000; // probe every 3 minutes
+const WATCHDOG_PROBE_TIMEOUT_MS = 20 * 1000;       // consider dead if no response in 20s
+
+function startWatchdog(currentSock, messageHandler) {
+    stopWatchdog();
+    watchdogInterval = setInterval(async () => {
+        try {
+            await Promise.race([
+                currentSock.sendPresenceUpdate('available'),
+                new Promise((_, reject) =>
+                    setTimeout(() => reject(new Error('watchdog probe timed out')), WATCHDOG_PROBE_TIMEOUT_MS)
+                )
+            ]);
+        } catch (err) {
+            logger.error(`[WATCHDOG] Connection appears dead (${err.message}) — forcing reconnect.`);
+            stopWatchdog();
+            try { currentSock.ws?.close(); } catch (_) { /* ignore */ }
+            try { currentSock.end(new Error('watchdog forced close')); } catch (_) { /* ignore */ }
+            // Safety net: if forcing the socket closed doesn't trigger Baileys'
+            // own 'close' → reconnect path within 10s, restart directly.
+            setTimeout(() => {
+                if (sock === currentSock) {
+                    logger.warn('[WATCHDOG] No reconnect observed after forced close — restarting connection directly.');
+                    startWhatsAppConnection(messageHandler);
+                }
+            }, 10000);
+        }
+    }, WATCHDOG_CHECK_INTERVAL_MS);
+}
+
+function stopWatchdog() {
+    if (watchdogInterval) {
+        clearInterval(watchdogInterval);
+        watchdogInterval = null;
+    }
+}
+
 // Deduplication: track processed message IDs to prevent retry-replay loops
 // Baileys sends retry receipts when decryption fails, causing the same message
 // to be delivered multiple times — this cache prevents duplicate bot responses.
@@ -198,19 +244,27 @@ export async function startWhatsAppConnection(messageHandler) {
 
         // Handle connection states
         if (connection === 'close') {
-            const shouldReconnect =
-                (lastDisconnect?.error instanceof Boom)
-                    ? lastDisconnect.error.output.statusCode !== DisconnectReason.loggedOut
-                    : true;
+            stopWatchdog();
 
-            logger.warn('Connection closed', { shouldReconnect });
+            const statusCode = (lastDisconnect?.error instanceof Boom)
+                ? lastDisconnect.error.output.statusCode
+                : undefined;
+            const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
+
+            logger.warn(
+                `Connection closed — statusCode=${statusCode} reason=${DisconnectReason[statusCode] || 'unknown'} shouldReconnect=${shouldReconnect}`,
+                lastDisconnect?.error?.message || lastDisconnect?.error
+            );
 
             if (shouldReconnect) {
                 logger.info('Reconnecting...');
                 setTimeout(() => startWhatsAppConnection(messageHandler), 5000);
+            } else {
+                logger.error('Logged out — delete auth_info_baileys/ and re-scan the QR code to relink.');
             }
         } else if (connection === 'open') {
             logger.info('WhatsApp connection established successfully! ✅');
+            startWatchdog(sock, messageHandler);
         }
     });
 
