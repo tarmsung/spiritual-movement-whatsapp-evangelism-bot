@@ -49,6 +49,11 @@ export const MAP_CONFIG = {
 export function shouldGenerateMap(input) {
     if (!input) return MAP_CONFIG.autoGenerate;
 
+    // MAP_CONFIG.autoGenerate is only a fallback for "no input given" above —
+    // OR'ing it in here too made this always return true (autoGenerate is a
+    // static `true` constant), so the explicit-command check below never had
+    // any effect. When there IS input, whether to generate a map should
+    // depend solely on whether the command is actually present.
     const text = typeof input === 'string' ? input : (input.visualCommand || '');
-    return text.includes(VISUAL_COMMANDS.GENERATE_MAP) || MAP_CONFIG.autoGenerate;
+    return text.includes(VISUAL_COMMANDS.GENERATE_MAP);
 }

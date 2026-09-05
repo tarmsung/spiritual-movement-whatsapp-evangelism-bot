@@ -64,8 +64,22 @@ export function validateDate(input) {
 
     // Check for DD/MM/YYYY format
     if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(input.trim())) {
-        const [day, month, year] = input.trim().split('/');
+        const [dayStr, monthStr, yearStr] = input.trim().split('/');
+        const day = parseInt(dayStr, 10);
+        const month = parseInt(monthStr, 10);
+        const year = parseInt(yearStr, 10);
         dateObj = new Date(year, month - 1, day);
+
+        // JS silently rolls an out-of-range day/month (e.g. 31/13, 30/02) into a
+        // different, valid calendar date instead of producing an invalid Date —
+        // isNaN() below would never catch that. Verify the constructed date's
+        // components match what was actually entered.
+        if (dateObj.getFullYear() !== year || dateObj.getMonth() !== month - 1 || dateObj.getDate() !== day) {
+            return {
+                valid: false,
+                error: 'Invalid date. Please check the day and month values.'
+            };
+        }
     } else {
         // Try YYYY-MM-DD format
         dateObj = new Date(input.trim());

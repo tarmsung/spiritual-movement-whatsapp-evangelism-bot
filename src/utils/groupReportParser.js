@@ -81,7 +81,9 @@ const FIELD_ALIASES = [
  */
 function buildAliasPattern(alias) {
     const escaped = alias.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    return `${escaped}\\s*[=:]`;
+    // \b anchors the alias to a word boundary so e.g. "Date" doesn't match the
+    // "date" inside "Update:" in a free-text field value like a message summary.
+    return `\\b${escaped}\\s*[=:]`;
 }
 
 /**

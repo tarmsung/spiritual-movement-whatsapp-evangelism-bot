@@ -32,6 +32,14 @@ export async function handleGroupMessage(sock, msg, messageText) {
     }
     const senderPhone = extractPhone(senderPhoneJid) || 'unknown';
 
+    // The digits shown as "@..." in outgoing text MUST match the digits of
+    // whatever JID is passed in `mentions` below, or WhatsApp clients fail to
+    // render/notify the mention pill. mentions always targets senderJid (see
+    // comment above — the LID itself in a LID-addressed group), so the
+    // visible tag must be built from senderJid's own digits, not the
+    // resolved phone number.
+    const mentionDigits = extractPhone(senderJid) || senderPhone;
+
     // Ignore messages sent by the bot itself
     if (msg.key.fromMe) {
         return;
@@ -74,7 +82,7 @@ export async function handleGroupMessage(sock, msg, messageText) {
             logger.warn(`[GROUP] Invalid evangelism report from ${senderJid}:`, validation.errors);
 
             const errorMsg =
-                `❌ *Evangelism Report Error* @${senderPhone}\n\n` +
+                `❌ *Evangelism Report Error* @${mentionDigits}\n\n` +
                 `The report could not be saved due to the following issues:\n` +
                 validation.errors.map(err => `• ${err}`).join('\n') +
                 `\n\n_Please check the format and try again._`;
@@ -107,7 +115,7 @@ export async function handleGroupMessage(sock, msg, messageText) {
         if (invalidTokens.length > 0) {
             const invalidList = invalidTokens.map(t => `• ${t}`).join('\n');
             const errorMsg =
-                `❌ *Evangelism Report Error* @${senderPhone}\n\n` +
+                `❌ *Evangelism Report Error* @${mentionDigits}\n\n` +
                 `You provided names instead of Member IDs for the Team field:\n` +
                 `${invalidList}\n\n` +
                 `*Only numeric Member IDs are allowed.* Please replace the names with the correct IDs and resubmit your report.\n` +
@@ -128,7 +136,7 @@ export async function handleGroupMessage(sock, msg, messageText) {
             if (unknownIds.length > 0) {
                 const idList = unknownIds.map(id => `• ${id}`).join('\n');
                 const errorMsg =
-                    `❌ *Evangelism Report Error* @${senderPhone}\n\n` +
+                    `❌ *Evangelism Report Error* @${mentionDigits}\n\n` +
                     `The following Team IDs were not found in the database:\n` +
                     `${idList}\n\n` +
                     `Please check the IDs and resubmit your report.\n` +
@@ -174,7 +182,7 @@ export async function handleGroupMessage(sock, msg, messageText) {
 
         // Send confirmation message
         const confirmMsg =
-            `✅ *Evangelism Report Saved!* @${senderPhone}\n\n` +
+            `✅ *Evangelism Report Saved!* @${mentionDigits}\n\n` +
             `📋 Report #${result.lastInsertRowid}\n` +
             `📅 Date: ${parsedReport.activity_date}\n` +
             `👥 Team: ${parsedReport.preachers_team || 'N/A'}\n` +

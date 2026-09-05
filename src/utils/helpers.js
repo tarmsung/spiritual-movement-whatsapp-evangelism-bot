@@ -51,8 +51,9 @@ export function parseDate(input) {
  */
 export function extractPhone(jid) {
     if (!jid) return null;
-    const number = jid.split('@')[0];       // strip @s.whatsapp.net, @lid, etc.
-    return number.replace(/[^0-9]/g, '');   // strip any non-digit characters (e.g. device suffix :15)
+    const beforeAt = jid.split('@')[0];      // strip @s.whatsapp.net, @lid, etc.
+    const beforeDevice = beforeAt.split(':')[0]; // strip multi-device suffix, e.g. ":15"
+    return beforeDevice.replace(/[^0-9]/g, ''); // strip any remaining non-digit characters
 }
 
 /**

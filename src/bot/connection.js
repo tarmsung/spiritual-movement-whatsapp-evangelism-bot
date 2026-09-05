@@ -406,8 +406,19 @@ export async function startWhatsAppConnection(messageHandler) {
                 // Serialized on the same per-JID queue as messages.upsert — this is a
                 // separate event listener, so without this a delete notification and a
                 // concurrent reply to the same chat could still race on its Signal session.
-                const jid = keys[0]?.remoteJid;
-                await runSerializedForJid(jid, () => handleMessageDelete(sock, keys));
+                // Group by remoteJid rather than locking only the first key's chat, since
+                // a single batch can span multiple chats and each needs its own lock.
+                const keysByJid = new Map();
+                for (const key of keys) {
+                    const jid = key?.remoteJid;
+                    if (!keysByJid.has(jid)) keysByJid.set(jid, []);
+                    keysByJid.get(jid).push(key);
+                }
+                await Promise.all(
+                    Array.from(keysByJid.entries()).map(([jid, jidKeys]) =>
+                        runSerializedForJid(jid, () => handleMessageDelete(sock, jidKeys))
+                    )
+                );
             }
         } catch (error) {
             logger.error('[CONNECTION] Error handling message deletion:', error);

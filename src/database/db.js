@@ -7,6 +7,22 @@ import { extractPhone } from '../utils/helpers.js';
 const supabase = createClient(config.supabaseUrl, config.supabaseKey);
 
 /**
+ * Format a Date as a YYYY-MM-DD string using its LOCAL calendar date.
+ * Never use date.toISOString().split('T')[0] for "today"/month-boundary
+ * calculations — toISOString() converts to UTC, so on any host running with
+ * a positive UTC offset (e.g. Africa/Harare, UTC+2, which is what this bot's
+ * cron jobs are scheduled in) that silently shifts the date back by a day
+ * for part of the local calendar day, causing off-by-one bugs in event
+ * queries and reminders.
+ */
+function toLocalDateString(date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+/**
  * Initialize database connection check
  */
 export async function initializeDatabase() {
@@ -410,7 +426,8 @@ export async function getReport(id) {
     .eq('id', id)
     .single();
 
-  if (error) throw error;
+  if (error && error.code !== 'PGRST116') throw error;
+  if (!data) return null;
 
   // Flatten the structure to match SQLite return
   if (data && data.assemblies) {
@@ -641,17 +658,17 @@ export async function getUpcomingEvents(limit = 10, monthName = null) {
       const startOfMonth = `${year}-${monthNumStr}-01`;
 
       const endDate = new Date(year, monthIndex + 1, 0);
-      const endOfMonth = endDate.toISOString().split('T')[0];
+      const endOfMonth = toLocalDateString(endDate);
 
       query = query.gte('event_date', startOfMonth).lte('event_date', endOfMonth);
     } else {
       // Fallback to "upcoming from today" if month is invalid
-      const today = new Date().toISOString().split('T')[0];
+      const today = toLocalDateString(new Date());
       query = query.gte('event_date', today).limit(limit);
     }
   } else {
     // No month specified, just get upcoming from today
-    const today = new Date().toISOString().split('T')[0];
+    const today = toLocalDateString(new Date());
     query = query.gte('event_date', today).limit(limit);
   }
 
@@ -665,7 +682,7 @@ export async function getUpcomingEvents(limit = 10, monthName = null) {
  * Get the single next upcoming event
  */
 export async function getNextEvent() {
-  const today = new Date().toISOString().split('T')[0];
+  const today = toLocalDateString(new Date());
   const { data, error } = await supabase
     .from('events')
     .select('*')
@@ -685,7 +702,7 @@ export async function getNextEvent() {
 export async function getEventsInDays(daysFromNow) {
   const target = new Date();
   target.setDate(target.getDate() + daysFromNow);
-  const targetStr = target.toISOString().split('T')[0];
+  const targetStr = toLocalDateString(target);
 
   const { data, error } = await supabase
     .from('events')
