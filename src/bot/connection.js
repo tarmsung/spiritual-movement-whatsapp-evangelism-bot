@@ -154,6 +154,28 @@ function stopWatchdog() {
     }
 }
 
+// ─── Per-JID send serialization ───────────────────────────────────────────
+// Baileys' processingMutex only guards its own message-store bookkeeping —
+// it does NOT serialize sock.sendMessage()/relayMessage() calls. If WhatsApp
+// delivers rapid consecutive messages from the same contact as separate
+// 'messages.upsert' events, Node fires this listener again for each one
+// without waiting for the previous call to finish, so two overlapping
+// messageHandler() calls can end up encrypting replies to the SAME contact
+// concurrently. Signal's double-ratchet session state is not safe for
+// concurrent encrypt calls — racing them corrupts the ratchet and produces
+// "Bad MAC" / "No matching sessions found" on the recipient's device, even
+// with only one linked device. Queuing message handling per JID ensures
+// replies to any one contact are always sent strictly one at a time.
+const jidQueues = new Map();
+function runSerializedForJid(jid, task) {
+    const prev = jidQueues.get(jid) || Promise.resolve();
+    const next = prev.then(task, task).finally(() => {
+        if (jidQueues.get(jid) === next) jidQueues.delete(jid);
+    });
+    jidQueues.set(jid, next);
+    return next;
+}
+
 // Deduplication: track processed message IDs to prevent retry-replay loops
 // Baileys sends retry receipts when decryption fails, causing the same message
 // to be delivered multiple times — this cache prevents duplicate bot responses.
@@ -366,8 +388,9 @@ export async function startWhatsAppConnection(messageHandler) {
                     setTimeout(() => processedMsgIds.delete(msgId), PROCESSED_MSG_TTL_MS);
                 }
 
-                // Process message
-                await messageHandler(sock, msg, messageText);
+                // Process message — serialized per sender so overlapping events for the
+                // same contact can't send concurrently and race on their Signal session.
+                await runSerializedForJid(remoteJid, () => messageHandler(sock, msg, messageText));
             } catch (error) {
                 logger.error('Error processing message:', error);
             }
@@ -380,7 +403,11 @@ export async function startWhatsAppConnection(messageHandler) {
         try {
             if (keys && keys.length > 0) {
                 logger.info(`[CONNECTION] messages.delete event - ${keys.length} message(s) deleted`);
-                await handleMessageDelete(sock, keys);
+                // Serialized on the same per-JID queue as messages.upsert — this is a
+                // separate event listener, so without this a delete notification and a
+                // concurrent reply to the same chat could still race on its Signal session.
+                const jid = keys[0]?.remoteJid;
+                await runSerializedForJid(jid, () => handleMessageDelete(sock, keys));
             }
         } catch (error) {
             logger.error('[CONNECTION] Error handling message deletion:', error);
