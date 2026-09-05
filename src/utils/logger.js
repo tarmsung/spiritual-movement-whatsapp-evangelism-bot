@@ -1,6 +1,13 @@
 import dotenv from 'dotenv';
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
 
-dotenv.config();
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+// See src/config/config.js for why this must be an absolute path rather than
+// dotenv.config() with no path (which resolves relative to process.cwd()).
+dotenv.config({ path: join(__dirname, '../../.env') });
 
 const LOG_LEVEL = process.env.LOG_LEVEL || 'info';
 

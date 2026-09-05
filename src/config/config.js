@@ -1,6 +1,15 @@
 import dotenv from 'dotenv';
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
 
-dotenv.config();
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+// Load from this project's own .env by absolute path — dotenv.config() with no
+// path resolves relative to process.cwd(), which under PM2 is whatever directory
+// `pm2 start`/`restart` was last invoked from (not necessarily this repo). On a
+// shared VPS running multiple bots, that silently loaded a DIFFERENT app's .env.
+dotenv.config({ path: join(__dirname, '../../.env') });
 
 const config = {
     // Church information
