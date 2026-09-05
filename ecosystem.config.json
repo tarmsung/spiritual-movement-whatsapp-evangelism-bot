@@ -14,5 +14,6 @@
     "out_file": "logs/pm2-out.log",
     "log_date_format": "YYYY-MM-DD HH:mm:ss",
     "merge_logs": true,
-    "restart_delay": 4000
+    "restart_delay": 4000,
+    "kill_timeout": 6000
 }

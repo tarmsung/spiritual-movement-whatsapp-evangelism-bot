@@ -45,18 +45,27 @@ async function main() {
     }
 }
 
-// Graceful shutdown
-process.on('SIGINT', () => {
+// Graceful shutdown — Baileys' useMultiFileAuthState persists creds/prekeys/
+// sessions with async fs writes (see its own reference to
+// https://github.com/WhiskeySockets/Baileys/issues/794). Calling process.exit()
+// immediately on signal can kill the process mid-write, leaving auth_info_baileys/
+// out of sync with what WhatsApp's server already recorded — this reproduced in
+// production as "PreKeyError: Invalid PreKey ID" immediately after nearly every
+// PM2 restart, cascading into "Bad MAC" / "No matching sessions found" for
+// whichever contact was mid-handshake at that moment. Waiting briefly before
+// exiting gives any in-flight write time to flush. PM2 must be configured with a
+// kill_timeout longer than this delay (see ecosystem.config.json) or it will
+// SIGKILL before the delay completes, defeating the point entirely.
+const SHUTDOWN_GRACE_MS = 2000;
+async function gracefulShutdown(signal) {
     logger.info('');
-    logger.info('Shutting down gracefully...');
+    logger.info(`Received ${signal}, shutting down gracefully...`);
+    await new Promise((resolve) => setTimeout(resolve, SHUTDOWN_GRACE_MS));
     process.exit(0);
-});
+}
 
-process.on('SIGTERM', () => {
-    logger.info('');
-    logger.info('Shutting down gracefully...');
-    process.exit(0);
-});
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
 
 // Handle unhandled rejections
 process.on('unhandledRejection', (reason, promise) => {
