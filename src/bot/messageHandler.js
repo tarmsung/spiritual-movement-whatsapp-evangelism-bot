@@ -47,8 +47,32 @@ export async function handleMessage(sock, msg, messageText) {
         }
     }
 
+    // WhatsApp's LID rollout treats an @lid address and its resolved phone-number
+    // JID as SEPARATE Signal-session identities. senderJid above is resolved to
+    // the phone number purely so downstream code can do phone-based lookups
+    // (admin/member checks, DB keys via extractPhone(userJid)) — but this message
+    // actually arrived on remoteJid (the LID), and only that address is
+    // guaranteed to have an established, valid session. Every downstream handler
+    // (executorMenu/memberMenu/testReportHandler) sends replies to whatever JID
+    // it was given, which up to now was the resolved phone JID — a session the
+    // recipient's device may never have properly negotiated, producing replies
+    // that show as "Waiting for this message" even though decrypting THEIR
+    // incoming messages (via the LID session) works fine. Wrap sock so any send
+    // targeting senderJid is transparently redirected to the address the message
+    // actually arrived on, without having to thread a second JID through every
+    // call site that already treats "userJid" as both the DB key and the reply
+    // address.
+    const replyJid = remoteJid;
+    if (replyJid !== senderJid) {
+        const realSendMessage = sock.sendMessage.bind(sock);
+        sock = {
+            ...sock,
+            sendMessage: (jid, ...args) => realSendMessage(jid === senderJid ? replyJid : jid, ...args)
+        };
+    }
+
     const phone = extractPhone(senderJid);
-    
+
     // --- Authorization: Parallelize checks for performance ---
     let adminAccess = false;
     let supervisorAccess = false;
