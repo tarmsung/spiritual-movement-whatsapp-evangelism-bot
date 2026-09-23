@@ -109,8 +109,12 @@ let sock = null;
 // with a cheap presence update; if it doesn't complete in time, we force-close
 // the socket ourselves so the existing 'close' handler's reconnect logic runs.
 let watchdogInterval = null;
-const WATCHDOG_CHECK_INTERVAL_MS = 3 * 60 * 1000; // probe every 3 minutes
-const WATCHDOG_PROBE_TIMEOUT_MS = 20 * 1000;       // consider dead if no response in 20s
+// 45 s is comfortably below the 60-90 s idle-connection timeout most VPS
+// NAT/firewalls enforce, so we catch a silently-dead socket before it goes
+// invisible. The previous 3-minute interval was longer than typical NAT
+// timeouts, meaning connections could be dead for minutes before detection.
+const WATCHDOG_CHECK_INTERVAL_MS = 45 * 1000;  // probe every 45 seconds
+const WATCHDOG_PROBE_TIMEOUT_MS  = 20 * 1000;  // consider dead if no response in 20s
 
 function startWatchdog(currentSock, messageHandler) {
     stopWatchdog();
@@ -190,23 +194,43 @@ const STALE_MSG_THRESHOLD_MS = 60 * 1000; // 60 seconds
  * @param {Function} messageHandler - Function to handle incoming messages
  * @returns {Promise<Object>} WhatsApp socket instance
  */
+// Cache the WA version after the first successful fetch.  fetchLatestBaileysVersion()
+// makes an outbound HTTP request to WhatsApp's CDN — on a VPS with slow DNS or
+// intermittent egress this can fail mid-reconnect and crash the reconnect loop.
+// Reusing the cached version is safe: Baileys only uses it to populate the
+// connection stanza; the server accepts any recent version.
+let _cachedVersion = null;
+
 export async function startWhatsAppConnection(messageHandler) {
     const authFolder = join(__dirname, '../../auth_info_baileys');
 
     // Load auth state
     const { state, saveCreds } = await useMultiFileAuthState(authFolder);
 
-    // Get latest version
-    const { version, isLatest } = await fetchLatestBaileysVersion();
-    logger.info(`Using WA v${version.join('.')}, isLatest: ${isLatest}`);
+    // Fetch WA version once; reuse cached value on subsequent reconnects.
+    if (!_cachedVersion) {
+        const { version, isLatest } = await fetchLatestBaileysVersion();
+        _cachedVersion = version;
+        logger.info(`Using WA v${version.join('.')}, isLatest: ${isLatest}`);
+    } else {
+        logger.info(`Reconnecting with cached WA v${_cachedVersion.join('.')}`);
+    }
 
     // Create socket
     sock = makeWASocket({
-        version,
+        version: _cachedVersion,
         auth: state,
         printQRInTerminal: true,
         logger: logger.child({ module: 'baileys' }),
-        browser: ['Evangelism Bot', 'Chrome', '1.0.0']
+        browser: ['Evangelism Bot', 'Chrome', '1.0.0'],
+        // Send a WebSocket ping every 10 s so VPS NAT/firewall tables stay
+        // alive. Without this, firewalls that drop idle connections after
+        // 60-90 s silently kill the TCP stream and the bot appears online
+        // in PM2 but never receives another message.
+        keepAliveIntervalMs: 10_000,
+        // Abort hung connection attempts after 60 s so the reconnect loop
+        // doesn't stall indefinitely on a slow VPS network.
+        connectTimeoutMs: 60_000,
     });
 
     // Handle credentials update
