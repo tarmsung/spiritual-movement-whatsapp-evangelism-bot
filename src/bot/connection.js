@@ -220,7 +220,7 @@ export async function startWhatsAppConnection(messageHandler) {
     sock = makeWASocket({
         version: _cachedVersion,
         auth: state,
-        printQRInTerminal: true,
+        printQRInTerminal: false, // deprecated — QR is rendered in connection.update below
         logger: logger.child({ module: 'baileys' }),
         browser: ['Evangelism Bot', 'Chrome', '1.0.0'],
         // Send a WebSocket ping every 10 s so VPS NAT/firewall tables stay
@@ -355,9 +355,17 @@ export async function startWhatsAppConnection(messageHandler) {
                     continue;
                 }
 
-                // Deduplication check — skip if this message ID was already processed
+                // Deduplication check — skip if this message ID was already processed.
+                // NOTE: Baileys occasionally delivers internal control frames with a null
+                // key.id; passing null into NodeCache.del() throws 'Cannot read properties
+                // of null (reading toString)'. Skip those messages entirely — they are not
+                // real user messages and don't need to be handled.
                 const msgId = msg.key.id;
-                if (msgId && processedMsgIds.has(msgId)) {
+                if (!msgId) {
+                    logger.debug('[CONNECTION] Skipping message with null id (internal control frame).');
+                    continue;
+                }
+                if (processedMsgIds.has(msgId)) {
                     logger.warn(`[CONNECTION] Duplicate message detected (id: ${msgId}), skipping retry replay.`);
                     continue;
                 }
